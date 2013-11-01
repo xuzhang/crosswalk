@@ -15,6 +15,8 @@
         'xwalk_application_resources',
       ],
       'sources': [
+        'browser/application_permission_service.cc',
+        'browser/application_permission_service.h',
         'browser/application_process_manager.cc',
         'browser/application_process_manager.h',
         'browser/application_protocols.cc',

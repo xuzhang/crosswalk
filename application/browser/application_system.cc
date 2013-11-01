@@ -10,6 +10,7 @@
 #include "net/base/net_util.h"
 #include "xwalk/application/browser/application_process_manager.h"
 #include "xwalk/application/browser/application_service.h"
+#include "xwalk/application/browser/application_permission_service.h"
 #include "xwalk/runtime/browser/runtime_context.h"
 #include "xwalk/runtime/common/xwalk_switches.h"
 
@@ -22,6 +23,7 @@ ApplicationSystem::ApplicationSystem(RuntimeContext* runtime_context) {
   runtime_context_ = runtime_context;
   process_manager_.reset(new ApplicationProcessManager(runtime_context));
   application_service_.reset(new ApplicationService(runtime_context));
+  application_permission_service_.reset(new ApplicationPermissionService(runtime_context));
 }
 
 ApplicationSystem::~ApplicationSystem() {

@@ -11,6 +11,7 @@
 #include "base/memory/scoped_ptr.h"
 #include "xwalk/application/browser/application_process_manager.h"
 #include "xwalk/application/browser/application_service.h"
+#include "xwalk/application/browser/application_permission_service.h"
 
 namespace xwalk {
 class RuntimeContext;
@@ -67,6 +68,7 @@ class ApplicationSystem {
   xwalk::RuntimeContext* runtime_context_;
   scoped_ptr<ApplicationProcessManager> process_manager_;
   scoped_ptr<ApplicationService> application_service_;
+  scoped_ptr<ApplicationPermissionService> application_permission_service_;
 
   DISALLOW_COPY_AND_ASSIGN(ApplicationSystem);
 };
