@@ -16,6 +16,8 @@
 #include "xwalk/runtime/browser/media/media_capture_devices_dispatcher.h"
 #include "xwalk/runtime/browser/runtime_context.h"
 #include "xwalk/runtime/browser/runtime_quota_permission_context.h"
+#include "xwalk/application/browser/application_permission_service.h"
+#include "xwalk/application/browser/application_system.h"
 #include "content/public/browser/browser_main_parts.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -139,6 +141,11 @@ void XWalkContentBrowserClient::RenderProcessHostCreated(
       main_parts_->extension_service();
   if (extension_service)
     extension_service->OnRenderProcessHostCreated(host);
+  xwalk::application::ApplicationSystem* system =
+      main_parts_->runtime_context()->GetApplicationSystem();
+  xwalk::application::ApplicationPermissionService* permissionService =
+      system->application_permission_service();
+  permissionService->OnRenderProcessHostCreated(host);
 }
 
 content::MediaObserver* XWalkContentBrowserClient::GetMediaObserver() {

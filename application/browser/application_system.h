@@ -64,6 +64,12 @@ class ApplicationSystem {
   bool LaunchFromCommandLine(const CommandLine& cmd_line, const GURL& url,
                              bool* run_default_message_loop_);
 
+  // The ApplicationPermissionService is created at startup.
+  ApplicationPermissionService* application_permission_service() {
+    return application_permission_service_.get();
+  }
+>>>>>>> [ApplicationPermission] add some function for message
+
  private:
   xwalk::RuntimeContext* runtime_context_;
   scoped_ptr<ApplicationProcessManager> process_manager_;
