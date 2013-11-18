@@ -38,6 +38,12 @@ IPC_MESSAGE_CONTROL1(XWalkExtensionProcessHostMsg_RenderProcessChannelCreated, /
 IPC_SYNC_MESSAGE_CONTROL0_1(XWalkExtensionProcessHostMsg_GetExtensionProcessChannel,  // NOLINT(*)
                             IPC::ChannelHandle /* channel id */)
 
+// Message from Extension Process to Browser Process. This message needs
+// to be synchronous
+IPC_SYNC_MESSAGE_CONTROL2_1(XWalkExtensionPermissionMsg_GetPermissionControl,  // NOLINT(*)
+                            int64_t /* instance id */,
+                            base::ListValue /* input contents */,
+                            base::ListValue /* output contents */)
 
 // We use a separated message class for Client<->Server communication
 // to ease filtering.

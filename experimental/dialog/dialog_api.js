@@ -11,6 +11,7 @@ exports.showOpenDialog = function(allow_multiple_selection,
                                   initial_path,
                                   file_types,
                                   callback) {
+  console.log('Xu::in dialog_api.js:showOpenDialog');
   internal.postMessage('showOpenDialog',
                        [allow_multiple_selection,
                        choose_directories,

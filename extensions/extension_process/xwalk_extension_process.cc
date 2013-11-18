@@ -56,6 +56,8 @@ void XWalkExtensionProcess::CreateBrowserProcessChannel() {
   std::string channel_id =
       CommandLine::ForCurrentProcess()->GetSwitchValueASCII(
           switches::kProcessChannelID);
+  LOG(INFO) << "XU:XWalkExtensionProcess::CreateBrowserProcessChannel():" <<
+      channel_id;
   browser_process_channel_.reset(new IPC::SyncChannel(channel_id,
       IPC::Channel::MODE_CLIENT, this, io_thread_.message_loop_proxy(),
       true, &shutdown_event_));

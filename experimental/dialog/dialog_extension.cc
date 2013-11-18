@@ -21,6 +21,7 @@ using namespace jsapi::dialog; // NOLINT
 DialogExtension::DialogExtension(RuntimeRegistry* runtime_registry)
   : runtime_registry_(runtime_registry),
     owning_window_(NULL) {
+  LOG(INFO) << "Xu:DialogExtension";
   set_name("xwalk.experimental.dialog");
   set_javascript_api(ResourceBundle::GetSharedInstance().GetRawDataResource(
       IDR_XWALK_EXPERIMENTAL_DIALOG_API).as_string());
@@ -32,6 +33,7 @@ DialogExtension::~DialogExtension() {
 }
 
 XWalkExtensionInstance* DialogExtension::CreateInstance() {
+  LOG(INFO) << "Xu:DialogExtension::CreateInstance()";
   return new DialogInstance(this);
 }
 
@@ -47,16 +49,19 @@ DialogInstance::DialogInstance(DialogExtension* extension)
   : extension_(extension),
     dialog_(NULL),
     handler_(this) {
+  LOG(INFO) << "Xu:DialogInstance";
   handler_.Register("showOpenDialog",
       base::Bind(&DialogInstance::OnShowOpenDialog, base::Unretained(this)));
   handler_.Register("showSaveDialog",
       base::Bind(&DialogInstance::OnShowSaveDialog, base::Unretained(this)));
+  permission_client_.reset(new ApplicationPermissionClient(extension));
 }
 
 DialogInstance::~DialogInstance() {
 }
 
 void DialogInstance::HandleMessage(scoped_ptr<base::Value> msg) {
+   LOG(INFO) << "Xu:DialogInstance::HandleMessage()";
   if (!BrowserThread::CurrentlyOn(BrowserThread::UI)) {
     BrowserThread::PostTask(
       BrowserThread::UI, FROM_HERE,
@@ -71,6 +76,13 @@ void DialogInstance::HandleMessage(scoped_ptr<base::Value> msg) {
 void DialogInstance::OnShowOpenDialog(
     scoped_ptr<XWalkExtensionFunctionInfo> info) {
   CHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+
+  bool status = permission_client_->CheckAccessControl("122","OnShowOpenDialog");
+  if (!status) {
+      LOG(WARNING) << "Xu: no permission to call OnShowOpenDialog";
+      return;
+  }
+  LOG(INFO) << "Xu:grant permission to call OnShowOpenDialog";
 
   scoped_ptr<ShowOpenDialog::Params>
       params(ShowOpenDialog::Params::Create(*info->arguments()));

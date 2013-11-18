@@ -355,6 +355,7 @@ void XWalkBrowserMainParts::RegisterInternalExtensionsInServer(
   server->RegisterExtension(scoped_ptr<XWalkExtension>(new RuntimeExtension()));
   server->RegisterExtension(scoped_ptr<XWalkExtension>(
       new ApplicationExtension(runtime_context()->GetApplicationSystem())));
+  LOG(INFO) << "XU:XWalkBrowserMainParts::RegisterInternalExtensionsInServer";
   server->RegisterExtension(scoped_ptr<XWalkExtension>(
       new experimental::DialogExtension(runtime_registry_.get())));
 #endif

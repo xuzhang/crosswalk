@@ -12,6 +12,7 @@
 #include "ui/shell_dialogs/select_file_dialog.h"
 #include "xwalk/extensions/browser/xwalk_extension_function_handler.h"
 #include "xwalk/extensions/common/xwalk_extension.h"
+#include "xwalk/extensions/common/application_permission_client.h"
 #include "xwalk/runtime/browser/runtime.h"
 #include "xwalk/runtime/browser/runtime_registry.h"
 
@@ -24,6 +25,7 @@ using extensions::XWalkExtension;
 using extensions::XWalkExtensionFunctionHandler;
 using extensions::XWalkExtensionFunctionInfo;
 using extensions::XWalkExtensionInstance;
+using extensions::ApplicationPermissionClient;
 
 class DialogExtension : public XWalkExtension,
                         public RuntimeRegistryObserver {
@@ -66,6 +68,7 @@ class DialogInstance : public XWalkExtensionInstance,
   void OnShowSaveDialog(scoped_ptr<XWalkExtensionFunctionInfo> info);
 
   DialogExtension* extension_;
+  scoped_ptr<ApplicationPermissionClient> permission_client_;
   scoped_refptr<SelectFileDialog> dialog_;
 
   XWalkExtensionFunctionHandler handler_;

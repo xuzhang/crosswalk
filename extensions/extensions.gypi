@@ -20,6 +20,8 @@
     'common/xwalk_external_extension.h',
     'common/xwalk_external_instance.cc',
     'common/xwalk_external_instance.h',
+    'common/application_permission_client.h',
+    'common/application_permission_client.cc',
     'extension_process/xwalk_extension_process_main.cc',
     'extension_process/xwalk_extension_process_main.h',
     'extension_process/xwalk_extension_process.cc',
