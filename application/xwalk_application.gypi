@@ -17,6 +17,7 @@
       'sources': [
         'browser/application_permission_service.cc',
         'browser/application_permission_service.h',
+        'browser/security_dbus_service.h',
         'browser/application_process_manager.cc',
         'browser/application_process_manager.h',
         'browser/application_protocols.cc',
@@ -73,6 +74,14 @@
             'browser/installer/tizen/package_installer.cc',
             'browser/installer/tizen/package_installer.h',
           ],
+        }],
+        [ 'OS=="linux"', {
+            'dependencies': [
+              'build/system.gyp:dbus',
+            ],
+            'sources': [
+              'browser/security_dbus_service.cc',
+            ],
         }],
       ],
       'include_dirs': [

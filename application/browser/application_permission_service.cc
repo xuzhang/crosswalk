@@ -17,6 +17,8 @@ namespace application {
 ApplicationPermissionService::ApplicationPermissionService(RuntimeContext* runtime_context) 
      : runtime_context_(runtime_context) {
     LOG(INFO) << "Xu::permission service create";
+    security_dbus_service_.reset(new SecurityDbusService());
+    security_dbus_service_->StartService();
 }
 
 ApplicationPermissionService::~ApplicationPermissionService() {
@@ -39,12 +41,12 @@ void ApplicationPermissionService::OnRenderProcessHostCreated(
         content::RenderProcessHost* host) {
     CHECK(host);
     LOG(INFO) << "Xu::enter OnRenderProcessHostCreated()";
-    IPC::ChannelProxy* channel = host->GetChannel();
+    IPC::ChannelProxy* channel = host->GetChannel(); // it is internal channel
+    //channel->send()
 }
 
 void ApplicationPermissionService::CreateExtensionProcessChannel() {
     LOG(INFO) << "Xu::enter CreateExtensionProcessChannel()";
 }
-
 }  // namespace application
 }  // namespace xwalk

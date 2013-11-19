@@ -13,6 +13,7 @@
 #include "ipc/ipc_channel_proxy.h"
 #include "xwalk/application/common/application.h"
 #include "xwalk/runtime/browser/runtime_context.h"
+#include "xwalk/application/browser/security_dbus_service.h"
 
 namespace IPC {
 class SyncChannel;
@@ -43,6 +44,7 @@ class ApplicationPermissionService : public IPC::Listener {
         scoped_ptr<IPC::SyncChannel> extension_process_channel_;
         IPC::ChannelProxy::MessageFilter* extension_process_message_filter_;
         IPC::ChannelHandle ep_channel_handle_;
+        scoped_ptr<SecurityDbusService> security_dbus_service_;   
 
         DISALLOW_COPY_AND_ASSIGN(ApplicationPermissionService);
 };

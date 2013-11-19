@@ -141,11 +141,13 @@ void XWalkContentBrowserClient::RenderProcessHostCreated(
       main_parts_->extension_service();
   if (extension_service)
     extension_service->OnRenderProcessHostCreated(host);
+  /*
   xwalk::application::ApplicationSystem* system =
       main_parts_->runtime_context()->GetApplicationSystem();
   xwalk::application::ApplicationPermissionService* permissionService =
       system->application_permission_service();
   permissionService->OnRenderProcessHostCreated(host);
+  */
 }
 
 content::MediaObserver* XWalkContentBrowserClient::GetMediaObserver() {
