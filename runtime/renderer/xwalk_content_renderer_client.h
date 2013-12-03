@@ -9,14 +9,17 @@
 #include "base/memory/scoped_ptr.h"
 #include "base/platform_file.h"
 #include "content/public/renderer/content_renderer_client.h"
+#include "xwalk/extensions/renderer/xwalk_extension_renderer_controller.h"
 
 namespace xwalk {
 
-namespace extensions {
-class XWalkExtensionRendererController;
-}
+class XWalkRenderProcessObserver;
 
-class XWalkContentRendererClient : public content::ContentRendererClient {
+// When implementing a derived class, make sure to update
+// `in_process_browser_test.cc` and `xwalk_main_delegate.cc`.
+class XWalkContentRendererClient
+    : public content::ContentRendererClient,
+      public extensions::XWalkExtensionRendererController::Delegate {
  public:
   static XWalkContentRendererClient* Get();
 
@@ -34,8 +37,16 @@ class XWalkContentRendererClient : public content::ContentRendererClient {
                                         int world_id) OVERRIDE;
 
  private:
+  // XWalkExtensionRendererController::Delegate implementation.
+  virtual void DidCreateModuleSystem(
+      extensions::XWalkModuleSystem* module_system) OVERRIDE;
+
   scoped_ptr<extensions::XWalkExtensionRendererController>
       extension_controller_;
+
+#if defined(OS_ANDROID)
+  scoped_ptr<XWalkRenderProcessObserver> xwalk_render_process_observer_;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(XWalkContentRendererClient);
 };

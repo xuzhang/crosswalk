@@ -3,7 +3,7 @@
 // found in the LICENSE file.
 
 #include "base/command_line.h"
-#include "base/utf_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "xwalk/runtime/browser/runtime.h"
 #include "xwalk/test/base/in_process_browser_test.h"
 #include "xwalk/test/base/xwalk_test_utils.h"
@@ -30,8 +30,8 @@ class XWalkDevToolsTest : public InProcessBrowserTest {
 
 IN_PROC_BROWSER_TEST_F(XWalkDevToolsTest, RemoteDebugging) {
   GURL localhost_url("http://127.0.0.1:9222");
-  Runtime* debugging_host =
-      Runtime::Create(runtime()->runtime_context(), localhost_url);
+  Runtime* debugging_host = Runtime::CreateWithDefaultWindow(
+      runtime()->runtime_context(), localhost_url);
   content::WaitForLoadStop(debugging_host->web_contents());
   string16 real_title = debugging_host->web_contents()->GetTitle();
   string16 expected_title = ASCIIToUTF16("XWalk Remote Debugging");

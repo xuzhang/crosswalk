@@ -5,35 +5,34 @@
 #include "xwalk/runtime/extension/runtime_extension.h"
 
 #include "base/bind.h"
-#include "xwalk/jsapi/runtime.h"
-
-extern const char kSource_runtime_api[];
+#include "grit/xwalk_resources.h"
+#include "xwalk/runtime/extension/runtime.h"
+#include "ui/base/resource/resource_bundle.h"
 
 namespace xwalk {
 
 RuntimeExtension::RuntimeExtension() {
   set_name("xwalk.runtime");
+  set_javascript_api(ResourceBundle::GetSharedInstance().GetRawDataResource(
+      IDR_XWALK_RUNTIME_API).as_string());
 }
 
-const char* RuntimeExtension::GetJavaScriptAPI() {
-  return kSource_runtime_api;
+XWalkExtensionInstance* RuntimeExtension::CreateInstance() {
+  return new RuntimeInstance();
 }
 
-XWalkExtension::Context* RuntimeExtension::CreateContext(
-    const XWalkExtension::PostMessageCallback& post_message) {
-  return new RuntimeContext(post_message);
+RuntimeInstance::RuntimeInstance() : handler_(this) {
+  handler_.Register("getAPIVersion",
+      base::Bind(&RuntimeInstance::OnGetAPIVersion, base::Unretained(this)));
 }
 
-RuntimeExtension::RuntimeContext::RuntimeContext(
-    const XWalkExtension::PostMessageCallback& post_message)
-  : XWalkInternalExtension::InternalContext(post_message) {
-  RegisterFunction("getAPIVersion", &RuntimeContext::OnGetAPIVersion);
+void RuntimeInstance::HandleMessage(scoped_ptr<base::Value> msg) {
+  handler_.HandleMessage(msg.Pass());
 }
 
-void RuntimeExtension::RuntimeContext::OnGetAPIVersion(
-    const std::string&, const std::string& callback_id,
-    base::ListValue* args) {
-  PostResult(callback_id, jsapi::runtime::GetAPIVersion::Results::Create(1));
+void RuntimeInstance::OnGetAPIVersion(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
+  info->PostResult(jsapi::runtime::GetAPIVersion::Results::Create(1));
 };
 
 }  // namespace xwalk

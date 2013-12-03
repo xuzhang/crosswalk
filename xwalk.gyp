@@ -1,7 +1,7 @@
 {
   'variables': {
     'xwalk_product_name': 'XWalk',
-    'xwalk_version': '1.28.2.0',
+    'xwalk_version': '<!(python ../chrome/tools/build/version.py -f VERSION -t "@MAJOR@.@MINOR@.@BUILD@.@PATCH@")',
     'conditions': [
       ['OS=="linux"', {
        'use_custom_freetype%': 1,
@@ -25,9 +25,10 @@
       },
       'dependencies': [
         '../base/base.gyp:base',
+        '../base/base.gyp:base_i18n',
         '../base/third_party/dynamic_annotations/dynamic_annotations.gyp:dynamic_annotations',
-        '../build/temp_gyp/googleurl.gyp:googleurl',
-        '../content/content.gyp:content_app',
+        '../content/content.gyp:content',
+        '../content/content.gyp:content_app_both',
         '../content/content.gyp:content_browser',
         '../content/content.gyp:content_common',
         '../content/content.gyp:content_gpu',
@@ -42,22 +43,21 @@
         '../net/net.gyp:net',
         '../net/net.gyp:net_resources',
         '../skia/skia.gyp:skia',
-        '../third_party/WebKit/Source/WebKit/chromium/WebKit.gyp:webkit',
+        '../third_party/WebKit/public/blink.gyp:blink',
         '../ui/gl/gl.gyp:gl',
+        '../ui/shell_dialogs/shell_dialogs.gyp:shell_dialogs',
         '../ui/ui.gyp:ui',
+        '../url/url.gyp:url_lib',
         '../v8/tools/gyp/v8.gyp:v8',
-        '../webkit/support/webkit_support.gyp:webkit_resources',
-        '../webkit/support/webkit_support.gyp:webkit_support',
-        'jsapi/jsapi.gyp:api',
+        '../webkit/common/user_agent/webkit_user_agent.gyp:user_agent',
+        '../webkit/glue/webkit_glue.gyp:glue_child',
+        '../webkit/webkit_resources.gyp:webkit_resources',
         'xwalk_application_lib',
         'xwalk_resources',
+        'experimental/experimental_resources.gyp:xwalk_experimental_resources',
       ],
       'include_dirs': [
         '..',
-      ],
-      'includes': [
-        'extensions/extensions.gypi',
-        'experimental/dialog/dialog.gypi',
       ],
       'sources': [
         'runtime/app/xwalk_main_delegate.cc',
@@ -66,6 +66,7 @@
         'runtime/browser/xwalk_application_mac.mm',
         'runtime/browser/xwalk_browser_main_parts.cc',
         'runtime/browser/xwalk_browser_main_parts.h',
+        'runtime/browser/xwalk_browser_main_parts_mac.h',
         'runtime/browser/xwalk_browser_main_parts_mac.mm',
         'runtime/browser/xwalk_content_browser_client.cc',
         'runtime/browser/xwalk_content_browser_client.h',
@@ -87,6 +88,8 @@
         'runtime/browser/runtime_download_manager_delegate.h',
         'runtime/browser/runtime_file_select_helper.cc',
         'runtime/browser/runtime_file_select_helper.h',
+        'runtime/browser/runtime_geolocation_permission_context.cc',
+        'runtime/browser/runtime_geolocation_permission_context.h',
         'runtime/browser/runtime_javascript_dialog_manager.cc',
         'runtime/browser/runtime_javascript_dialog_manager.h',
         'runtime/browser/runtime_network_delegate.cc',
@@ -94,10 +97,11 @@
         'runtime/browser/runtime_platform_util.h',
         'runtime/browser/runtime_platform_util_android.cc',
         'runtime/browser/runtime_platform_util_aura.cc',
-        'runtime/browser/runtime_platform_util_gtk.cc',
         'runtime/browser/runtime_platform_util_linux.cc',
         'runtime/browser/runtime_platform_util_mac.mm',
         'runtime/browser/runtime_platform_util_win.cc',
+        'runtime/browser/runtime_quota_permission_context.cc',
+        'runtime/browser/runtime_quota_permission_context.h',
         'runtime/browser/runtime_registry.cc',
         'runtime/browser/runtime_registry.h',
         'runtime/browser/runtime_select_file_policy.cc',
@@ -106,21 +110,18 @@
         'runtime/browser/runtime_url_request_context_getter.h',
         'runtime/browser/ui/color_chooser.cc',
         'runtime/browser/ui/color_chooser.h',
+        'runtime/browser/ui/color_chooser_android.cc',
         'runtime/browser/ui/color_chooser_aura.cc',
-        'runtime/browser/ui/color_chooser_dialog_win.cc',
-        'runtime/browser/ui/color_chooser_dialog_win.h',
-        'runtime/browser/ui/color_chooser_gtk.cc',
-        'runtime/browser/ui/color_chooser_win.cc',
-        'runtime/browser/ui/desktop_root_window_host_xwalk.cc',
-        'runtime/browser/ui/desktop_root_window_host_xwalk.h',
+        'runtime/browser/ui/color_chooser_mac.cc',
         'runtime/browser/ui/native_app_window.cc',
         'runtime/browser/ui/native_app_window.h',
-        'runtime/browser/ui/native_app_window_gtk.cc',
-        'runtime/browser/ui/native_app_window_gtk.h',
+        'runtime/browser/ui/native_app_window_android.cc',
         'runtime/browser/ui/native_app_window_mac.h',
         'runtime/browser/ui/native_app_window_mac.mm',
         'runtime/browser/ui/native_app_window_views.cc',
         'runtime/browser/ui/native_app_window_views.h',
+        'runtime/browser/ui/xwalk_views_delegate.cc',
+        'runtime/browser/ui/xwalk_views_delegate.h',
         'runtime/browser/ui/top_view_layout_views.cc',
         'runtime/browser/ui/top_view_layout_views.h',
         'runtime/browser/ui/taskbar_util.h',
@@ -133,11 +134,17 @@
         'runtime/common/xwalk_paths.h',
         'runtime/common/xwalk_switches.cc',
         'runtime/common/xwalk_switches.h',
-        'runtime/extension/runtime_api.js',
+        'runtime/extension/runtime.idl',
         'runtime/extension/runtime_extension.cc',
         'runtime/extension/runtime_extension.h',
         'runtime/renderer/xwalk_content_renderer_client.cc',
         'runtime/renderer/xwalk_content_renderer_client.h',
+      ],
+      'includes': [
+        'extensions/extensions.gypi',
+        'experimental/dialog/dialog.gypi',
+        'sysapps/sysapps.gypi',
+        'xwalk_jsapi.gypi',
       ],
       'msvs_settings': {
         'VCLinkerTool': {
@@ -145,6 +152,29 @@
         },
       },
       'conditions': [
+        [ 'tizen_mobile == 1', {
+          'dependencies': [
+            'sysapps/sysapps_resources.gyp:xwalk_sysapps_resources',
+            'tizen/xwalk_tizen.gypi:xwalk_tizen_lib',
+          ],
+          'includes': [
+            'sysapps/device_capabilities/device_capabilities.gypi',
+          ],
+          'sources': [
+            'runtime/browser/tizen/sensor_provider.cc',
+            'runtime/browser/tizen/sensor_provider.h',
+            'runtime/browser/tizen/tizen_data_fetcher_shared_memory.cc',
+            'runtime/browser/tizen/tizen_data_fetcher_shared_memory.h',
+            'runtime/browser/tizen/tizen_platform_sensor.cc',
+            'runtime/browser/tizen/tizen_platform_sensor.h',
+            'runtime/browser/ui/native_app_window_tizen.cc',
+            'runtime/browser/ui/native_app_window_tizen.h',
+            'runtime/browser/xwalk_browser_main_parts_tizen.cc',
+            'runtime/browser/xwalk_browser_main_parts_tizen.h',
+            'runtime/renderer/tizen/xwalk_content_renderer_client_tizen.cc',
+            'runtime/renderer/tizen/xwalk_content_renderer_client_tizen.h',
+          ],
+        }],
         ['OS=="android"',{
           'sources': [
             'runtime/app/android/xwalk_main_delegate_android.cc',
@@ -160,12 +190,12 @@
             'runtime/browser/android/net/input_stream_reader.h',
             'runtime/browser/android/net/url_constants.cc',
             'runtime/browser/android/net/url_constants.h',
-            'runtime/browser/android/net/xwalk_url_request_job_factory.cc',
-            'runtime/browser/android/net/xwalk_url_request_job_factory.h',
             'runtime/browser/android/net_disk_cache_remover.cc',
             'runtime/browser/android/net_disk_cache_remover.h',
             'runtime/browser/android/renderer_host/xwalk_render_view_host_ext.cc',
             'runtime/browser/android/renderer_host/xwalk_render_view_host_ext.h',
+            'runtime/browser/android/state_serializer.cc',
+            'runtime/browser/android/state_serializer.h',
             'runtime/browser/android/xwalk_content.cc',
             'runtime/browser/android/xwalk_content.h',
             'runtime/browser/android/xwalk_contents_client_bridge.cc',
@@ -174,8 +204,15 @@
             'runtime/browser/android/xwalk_contents_client_bridge_base.h',
             'runtime/browser/android/xwalk_dev_tools_server.cc',
             'runtime/browser/android/xwalk_dev_tools_server.h',
+            'runtime/browser/android/xwalk_download_resource_throttle.cc',
+            'runtime/browser/android/xwalk_download_resource_throttle.h',
+            'runtime/browser/android/xwalk_settings.cc',
             'runtime/browser/android/xwalk_web_contents_delegate.cc',
             'runtime/browser/android/xwalk_web_contents_delegate.h',
+            'runtime/browser/runtime_resource_dispatcher_host_delegate.cc',
+            'runtime/browser/runtime_resource_dispatcher_host_delegate.h',
+            'runtime/browser/xwalk_browser_main_parts_android.cc',
+            'runtime/browser/xwalk_browser_main_parts_android.h',
             'runtime/common/android/xwalk_hit_test_data.cc',
             'runtime/common/android/xwalk_hit_test_data.h',
             'runtime/common/android/xwalk_globals_android.cc',
@@ -184,6 +221,8 @@
             'runtime/common/android/xwalk_message_generator.h',
             'runtime/common/android/xwalk_render_view_messages.cc',
             'runtime/common/android/xwalk_render_view_messages.h',
+            'runtime/renderer/android/xwalk_render_process_observer.cc',
+            'runtime/renderer/android/xwalk_render_process_observer.h',
             'runtime/renderer/android/xwalk_render_view_ext.cc',
             'runtime/renderer/android/xwalk_render_view_ext.h',
           ],
@@ -229,11 +268,6 @@
              '../third_party/freetype2/freetype2.gyp:freetype2',
           ],
         }],  # use_custom_freetype==1
-        ['toolkit_uses_gtk==1', {
-          'dependencies': [
-            '../build/linux/system.gyp:gtk',
-          ],
-        }],  # toolkit_uses_gtk==1
         ['toolkit_views==1', {
           'dependencies': [
             '../ui/base/strings/ui_strings.gyp:ui_strings',
@@ -250,7 +284,6 @@
         }, {  # use_aura==0
           'sources/': [
             ['exclude', '_aura\\.cc$'],
-            ['exclude', 'runtime/browser/ui/desktop_root_window_host_xwalk.cc'],
           ],
         }],
       ],
@@ -284,7 +317,7 @@
         {
           'action_name': 'xwalk_resources',
           'variables': {
-            'grit_resource_ids': 'runtime/resources/resource_ids',
+            'grit_resource_ids': 'resources/resource_ids',
             'grit_grd_file': 'runtime/resources/xwalk_resources.grd',
           },
           'includes': [ '../build/grit_action.gypi' ],
@@ -297,10 +330,16 @@
       'target_name': 'xwalk_pak',
       'type': 'none',
       'dependencies': [
-        '<(DEPTH)/content/browser/devtools/devtools_resources.gyp:devtools_resources',
         '<(DEPTH)/ui/base/strings/ui_strings.gyp:ui_strings',
         '<(DEPTH)/ui/ui.gyp:ui_resources',
         'xwalk_resources',
+      ],
+      'conditions': [
+        [ 'OS!="android"', {
+          'dependencies': [
+            '<(DEPTH)/content/browser/devtools/devtools_resources.gyp:devtools_resources',
+          ],
+        }],
       ],
       'variables': {
         'repack_path': '../tools/grit/grit/format/repack.py',
@@ -311,17 +350,36 @@
           'variables': {
             'pak_inputs': [
               '<(SHARED_INTERMEDIATE_DIR)/xwalk/xwalk_resources.pak',
+              '<(SHARED_INTERMEDIATE_DIR)/xwalk/xwalk_application_resources.pak',
+              '<(SHARED_INTERMEDIATE_DIR)/xwalk/xwalk_experimental_resources.pak',
+              '<(SHARED_INTERMEDIATE_DIR)/xwalk/xwalk_extensions_resources.pak',
+              '<(SHARED_INTERMEDIATE_DIR)/xwalk/xwalk_sysapps_resources.pak',
               '<(SHARED_INTERMEDIATE_DIR)/content/content_resources.pak',
               '<(SHARED_INTERMEDIATE_DIR)/net/net_resources.pak',
               '<(SHARED_INTERMEDIATE_DIR)/ui/app_locale_settings/app_locale_settings_en-US.pak',
               '<(SHARED_INTERMEDIATE_DIR)/ui/ui_strings/ui_strings_en-US.pak',
               '<(SHARED_INTERMEDIATE_DIR)/ui/ui_resources/ui_resources_100_percent.pak',
-              '<(SHARED_INTERMEDIATE_DIR)/webkit/devtools_resources.pak',
-              '<(SHARED_INTERMEDIATE_DIR)/webkit/webkit_chromium_resources.pak',
+              '<(SHARED_INTERMEDIATE_DIR)/webkit/blink_resources.pak',
               '<(SHARED_INTERMEDIATE_DIR)/webkit/webkit_resources_100_percent.pak',
               '<(SHARED_INTERMEDIATE_DIR)/webkit/webkit_strings_en-US.pak',
             ],
           },
+          'conditions': [
+            [ 'OS!="android"', {
+              'variables': {
+                'pak_inputs+': [
+                  '<(SHARED_INTERMEDIATE_DIR)/webkit/devtools_resources.pak',
+                ],
+              },
+            }],
+            [ 'tizen_mobile == 1', {
+              'variables': {
+                'pak_inputs+': [
+                  '<(SHARED_INTERMEDIATE_DIR)/xwalk/xwalk_sysapps_resources.pak',
+                ],
+              },
+            }],
+          ],
           'inputs': [
             '<(repack_path)',
             '<@(pak_inputs)',
@@ -398,11 +456,11 @@
             },
           },
         }],  # OS=="win"
-        ['OS == "win" or (toolkit_uses_gtk == 1 and selinux == 0)', {
+        ['OS == "win"', {
           'dependencies': [
             '../sandbox/sandbox.gyp:sandbox',
           ],
-        }],  # OS=="win" or (toolkit_uses_gtk == 1 and selinux == 0)
+        }],  # OS=="win"
         ['OS == "linux"', {
           'dependencies': [
             # Build osmesa to workaround egl backend issue on Tizen 2.1 emulator
@@ -498,21 +556,64 @@
         ['OS!="android"', {
           'dependencies': [
             'xwalk',
-            'xwalk_browsertest',
-            'xwalk_unittest',
+            'xwalk_all_tests',
+            'xwalk_xpk_generator',
           ],
         },
         {
           'dependencies': [
+            # For internal testing.
             'xwalk_core_shell_apk',
             'xwalk_core_test_apk',
             'xwalk_runtime_shell_apk',
+            'xwalk_runtime_client_embedded_shell_apk',
+            'xwalk_runtime_client_embedded_test_apk',
+            'xwalk_runtime_client_shell_apk',
+            'xwalk_runtime_client_test_apk',
+
+            # For external testing.
+            'pack_xwalk_core_library',
             'xwalk_runtime_lib_apk',
+            'xwalk_app_hello_world_apk',
+            'xwalk_app_template',
           ],
         }],
       ],
     },
-  ],
+    {
+      'target_name': 'xwalk_extension_shell',
+      'type': 'executable',
+      'defines': ['XWALK_VERSION="<(xwalk_version)"'],
+      'product_name': 'xesh',
+      'conditions': [
+        ['OS=="linux"', {
+          'dependencies': [
+            'xwalk_runtime',
+          ],
+          'include_dirs': [
+            '..',
+          ],
+          'sources': [
+            'extensions/xesh/xesh_main.cc',
+            'extensions/xesh/xesh_v8_runner.h',
+            'extensions/xesh/xesh_v8_runner.cc',
+          ],
+        }],
+      ],
+    },
+    {
+      'target_name': 'xwalk_xpk_generator',
+      'type': 'none',
+      'copies': [
+        {
+          'destination': '<(PRODUCT_DIR)/tools',
+          'files': [
+            'tools/make_xpk.py',
+          ],
+        },
+      ],
+    },
+  ], # targets
   'conditions': [
     ['OS=="mac"', {
       'targets': [
@@ -642,11 +743,29 @@
       ],
     }],  # OS=="mac"
     ['OS=="android"', {
+      'variables': {
+        'variables': {
+          'conditions': [
+            ['android_app_abi=="x86"', {
+              'version_code_shift%': 1,
+            }],
+            ['android_app_abi=="armeabi-v7a"', {
+              'version_code_shift%': 2,
+            }],
+            ['android_app_abi=="armeabi"', {
+              'version_code_shift%': 3,
+            }],
+          ], # conditions
+        },
+        'version_code_shift%': '<(version_code_shift)',
+        'xwalk_version_code': '<!(python tools/build/android/generate_version_code.py -f VERSION -s <(version_code_shift))',
+      },
       'includes': [
         '../build/all_android.gyp',
         'xwalk_android.gypi',
         'xwalk_android_tests.gypi',
         'xwalk_android_app.gypi',
+        'xwalk_core_library_android.gypi',
       ],
     }], # OS=="android"
   ]

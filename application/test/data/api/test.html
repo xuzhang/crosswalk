@@ -1,0 +1,59 @@
+<html>
+<head>
+<title></title>
+</head>
+<body>
+  <script>
+    function assert(condition, message) {
+      if (!condition)
+        throw message || "Assertion failed";
+    }
+
+    function runTestCase(fn) {
+      try {
+        fn();
+      } catch(e) {
+        console.log(e);
+        console.log(new Error().stack);
+        xwalk.app.test.notifyFail(function(){});
+      }
+    }
+
+    function runNextTest() {
+      currIdx++;
+      if (currIdx == tests.length) {
+        xwalk.app.test.notifyPass(function(){});
+        return;
+      }
+      tests[currIdx].call();
+    }
+
+    var tests = [
+      function testGetManifest() {
+        xwalk.app.runtime.getManifest(function(manifest) {
+          runTestCase(function() {
+            assert(manifest);
+            assert(manifest.name === "xwalk.app API Test");
+            assert(manifest.version === "1.0");
+            assert(manifest.manifest_version === 1);
+            runNextTest();
+          });
+        });
+      },
+
+      function testGetMainDocument() {
+        xwalk.app.runtime.getMainDocument(function(main) {
+          runTestCase(function() {
+            assert(main);
+            assert(main.initialized);
+            runNextTest();
+          });
+        });
+      }
+    ];
+
+    var currIdx = 0;
+    tests[currIdx].call();
+  </script>
+</body>
+</html>

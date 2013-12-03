@@ -12,7 +12,7 @@
 namespace xwalk {
 
 class XWalkWebContentsDelegate
-    : public components::WebContentsDelegateAndroid {
+    : public web_contents_delegate_android::WebContentsDelegateAndroid {
  public:
   XWalkWebContentsDelegate(JNIEnv* env, jobject obj);
   virtual ~XWalkWebContentsDelegate();
@@ -32,6 +32,14 @@ class XWalkWebContentsDelegate
       const content::FileChooserParams& params) OVERRIDE;
   virtual content::JavaScriptDialogManager*
       GetJavaScriptDialogManager() OVERRIDE;
+
+  virtual void RequestMediaAccessPermission(
+      content::WebContents* web_contents,
+      const content::MediaStreamRequest& request,
+      const content::MediaResponseCallback& callback) OVERRIDE;
+
+  virtual void RendererUnresponsive(content::WebContents* source) OVERRIDE;
+  virtual void RendererResponsive(content::WebContents* source) OVERRIDE;
 
  private:
   scoped_ptr<content::JavaScriptDialogManager> javascript_dialog_manager_;

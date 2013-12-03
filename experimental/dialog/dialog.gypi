@@ -1,7 +1,7 @@
 {
   'sources': [
-    'dialog_extension.h',
+    'dialog.idl',
     'dialog_extension.cc',
-    'dialog_api.js',
+    'dialog_extension.h',
   ],
 }

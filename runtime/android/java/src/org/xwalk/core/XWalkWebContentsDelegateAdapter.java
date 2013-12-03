@@ -28,11 +28,24 @@ public class XWalkWebContentsDelegateAdapter extends XWalkWebContentsDelegate {
 
     @Override
     public void closeContents() {
-        // TODO: implement.
+        if (mXWalkContentsClient != null)
+            mXWalkContentsClient.onCloseWindow();
     }
 
     @Override
     public void activateContents() {
         // TODO: implement.
+    }
+
+    @Override
+    public void rendererUnresponsive() {
+        if (mXWalkContentsClient != null)
+            mXWalkContentsClient.onRendererUnresponsive();
+    }
+
+    @Override
+    public void rendererResponsive() {
+        if (mXWalkContentsClient != null)
+            mXWalkContentsClient.onRendererResponsive();
     }
 }

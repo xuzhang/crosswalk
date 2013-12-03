@@ -17,16 +17,27 @@ public abstract class CrossPackageWrapper {
     private Class<?> mTargetClass;
     private Constructor<?> mCreator;
     private CrossPackageWrapperExceptionHandler mExceptionHandler;
+    private boolean mLibraryEmbedded;
 
-    public CrossPackageWrapper(Context ctx, String className, 
+    public CrossPackageWrapper(Context ctx, String className,
             CrossPackageWrapperExceptionHandler handler, Class<?>... parameters) {
+        try {
+            mTargetClass = ctx.getClassLoader().loadClass(className);
+            mLibraryEmbedded = true;
+        } catch (ClassNotFoundException e) {
+            mLibraryEmbedded = false;
+        }
         mExceptionHandler = handler;
         try {
-            mLibCtx = ctx.createPackageContext(
-                    LIBRARY_APK_PACKAGE_NAME,
-                    Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
-            mTargetClass =
-                    mLibCtx.getClassLoader().loadClass(className);
+            if (mLibraryEmbedded) {
+                mLibCtx = ctx;
+            } else {
+                mLibCtx = ctx.createPackageContext(
+                        LIBRARY_APK_PACKAGE_NAME,
+                        Context.CONTEXT_INCLUDE_CODE | Context.CONTEXT_IGNORE_SECURITY);
+                mTargetClass =
+                        mLibCtx.getClassLoader().loadClass(className);
+            }
             mCreator = mTargetClass.getConstructor(parameters);
         } catch (NameNotFoundException e) {
             handleException(e);
@@ -36,7 +47,7 @@ public abstract class CrossPackageWrapper {
             handleException(e);
         }
     }
-    
+
     public Object createInstance(Object... parameters) {
         Object ret = null;
         if (mCreator != null) {
@@ -49,20 +60,21 @@ public abstract class CrossPackageWrapper {
             } catch (IllegalAccessException e) {
                 handleException(e);
             } catch (InvocationTargetException e) {
-                e.printStackTrace();
                 handleException(e);
             }
-        } else {
-            handleException("No matched constructor found");
         }
         return ret;
     }
-    
+
     public void handleException(Exception e) {
+        // mExceptionHandler is for handling runtime library not found or
+        // not match, if library is embedded, should not invoke it.
+        if (mLibraryEmbedded) return;
         if (mExceptionHandler != null) mExceptionHandler.onException(e);
     }
-    
+
     public void handleException(String e) {
+        if (mLibraryEmbedded) return;
         if (mExceptionHandler != null) mExceptionHandler.onException(e);
     }
 
@@ -73,7 +85,7 @@ public abstract class CrossPackageWrapper {
     public Context getLibraryContext() {
         return mLibCtx;
     }
-    
+
     public Method lookupMethod(String method, Class<?>... parameters) {
         if (mTargetClass == null) return null;
         try {
@@ -81,10 +93,9 @@ public abstract class CrossPackageWrapper {
         } catch (NoSuchMethodException e) {
             handleException(e);
         }
-        handleException("No match method found");
         return null;
     }
-    
+
     public Object invokeMethod(Method m, Object instance, Object... parameters) {
         Object ret = null;
         if (m != null) {

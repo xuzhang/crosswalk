@@ -4,20 +4,26 @@
 
 #include "xwalk/runtime/browser/runtime_context.h"
 
+#include <string>
+#include <utility>
+
 #include "base/command_line.h"
 #include "base/logging.h"
 #include "base/path_service.h"
-#include "xwalk/application/browser/application_system.h"
-#include "xwalk/application/common/constants.h"
-#include "xwalk/runtime/browser/runtime_download_manager_delegate.h"
-#include "xwalk/runtime/browser/runtime_url_request_context_getter.h"
-#include "xwalk/runtime/common/xwalk_paths.h"
-#include "xwalk/runtime/common/xwalk_switches.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/resource_context.h"
 #include "content/public/browser/storage_partition.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/content_switches.h"
+#include "xwalk/application/browser/application_protocols.h"
+#include "xwalk/application/browser/application_service.h"
+#include "xwalk/application/browser/application_system.h"
+#include "xwalk/application/common/constants.h"
+#include "xwalk/runtime/browser/runtime_download_manager_delegate.h"
+#include "xwalk/runtime/browser/runtime_geolocation_permission_context.h"
+#include "xwalk/runtime/browser/runtime_url_request_context_getter.h"
+#include "xwalk/runtime/common/xwalk_paths.h"
+#include "xwalk/runtime/common/xwalk_switches.h"
 
 using content::BrowserThread;
 using content::DownloadManager;
@@ -39,6 +45,9 @@ class RuntimeContext::RuntimeResourceContext : public content::ResourceContext {
     return getter_->GetURLRequestContext();
   }
 
+  virtual bool AllowMicAccess(const GURL& origin) OVERRIDE { return false; }
+  virtual bool AllowCameraAccess(const GURL& origin) OVERRIDE { return false; }
+
   void set_url_request_context_getter(RuntimeURLRequestContextGetter* getter) {
     getter_ = getter;
   }
@@ -49,14 +58,10 @@ class RuntimeContext::RuntimeResourceContext : public content::ResourceContext {
   DISALLOW_COPY_AND_ASSIGN(RuntimeResourceContext);
 };
 
-#if !defined(OS_ANDROID)
 RuntimeContext::RuntimeContext()
   : resource_context_(new RuntimeResourceContext) {
-#else
-RuntimeContext::RuntimeContext() {
-#endif
-  application_system_.reset(new xwalk::application::ApplicationSystem(this));
   InitWhileIOAllowed();
+  application_system_.reset(new xwalk::application::ApplicationSystem(this));
 }
 
 RuntimeContext::~RuntimeContext() {
@@ -66,14 +71,12 @@ RuntimeContext::~RuntimeContext() {
   }
 }
 
-#if defined(OS_ANDROID)
 // static
 RuntimeContext* RuntimeContext::FromWebContents(
     content::WebContents* web_contents) {
   // This is safe; this is the only implementation of the browser context.
   return static_cast<RuntimeContext*>(web_contents->GetBrowserContext());
 }
-#endif
 
 void RuntimeContext::InitWhileIOAllowed() {
   CommandLine* cmd_line = CommandLine::ForCurrentProcess();
@@ -84,7 +87,7 @@ void RuntimeContext::InitWhileIOAllowed() {
   }
 }
 
-base::FilePath RuntimeContext::GetPath() {
+base::FilePath RuntimeContext::GetPath() const {
   base::FilePath result;
 #if defined(OS_ANDROID)
   CHECK(PathService::Get(base::DIR_ANDROID_APP_DATA, &result));
@@ -94,23 +97,12 @@ base::FilePath RuntimeContext::GetPath() {
   return result;
 }
 
-#if defined(OS_ANDROID)
-void RuntimeContext::InitializeBeforeThreadCreation() {
-}
-
-void RuntimeContext::PreMainMessageLoopRun() {
-}
-#endif
-
 bool RuntimeContext::IsOffTheRecord() const {
   // We don't consider off the record scenario.
   return false;
 }
 
 content::DownloadManagerDelegate* RuntimeContext::GetDownloadManagerDelegate() {
-#if defined(OS_ANDROID)
-  return NULL;
-#else
   content::DownloadManager* manager = BrowserContext::GetDownloadManager(this);
 
   if (!download_manager_delegate_) {
@@ -119,7 +111,6 @@ content::DownloadManagerDelegate* RuntimeContext::GetDownloadManagerDelegate() {
   }
 
   return download_manager_delegate_.get();
-#endif
 }
 
 net::URLRequestContextGetter* RuntimeContext::GetRequestContext() {
@@ -150,21 +141,19 @@ net::URLRequestContextGetter*
 }
 
 content::ResourceContext* RuntimeContext::GetResourceContext()  {
-#if defined(OS_ANDROID)
-  if (!resource_context_.get())
-    resource_context_.reset(new RuntimeResourceContext);
-#endif
   return resource_context_.get();
 }
 
 content::GeolocationPermissionContext*
     RuntimeContext::GetGeolocationPermissionContext()  {
-  return NULL;
-}
-
-content::SpeechRecognitionPreferences*
-    RuntimeContext::GetSpeechRecognitionPreferences() {
-  return NULL;
+#if defined(OS_ANDROID)
+  if (!geolocation_permission_context_) {
+    geolocation_permission_context_ =
+        RuntimeGeolocationPermissionContext::Create(this);
+  }
+#endif
+  // TODO(yongsheng): Create geolcation permission context for other platforms.
+  return geolocation_permission_context_.get();
 }
 
 quota::SpecialStoragePolicy* RuntimeContext::GetSpecialStoragePolicy() {
@@ -178,6 +167,18 @@ xwalk::application::ApplicationSystem* RuntimeContext::GetApplicationSystem() {
 net::URLRequestContextGetter* RuntimeContext::CreateRequestContext(
     content::ProtocolHandlerMap* protocol_handlers) {
   DCHECK(!url_request_getter_);
+
+  xwalk::application::ApplicationService* service =
+    application_system_.get()->application_service();
+  const xwalk::application::Application* running_app =
+    service->GetRunningApplication();
+  if (running_app) {
+    protocol_handlers->insert(std::pair<std::string,
+        linked_ptr<net::URLRequestJobFactory::ProtocolHandler> >(
+          application::kApplicationScheme,
+          CreateApplicationProtocolHandler(running_app)));
+  }
+
   url_request_getter_ = new RuntimeURLRequestContextGetter(
       false, /* ignore_certificate_error = false */
       GetPath(),

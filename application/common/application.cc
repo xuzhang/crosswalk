@@ -13,21 +13,26 @@
 #include "base/logging.h"
 #include "base/memory/singleton.h"
 #include "base/stl_util.h"
-#include "base/string16.h"
-#include "base/string_util.h"
-#include "base/stringprintf.h"
+#include "base/strings/string16.h"
+#include "base/strings/string_util.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_piece.h"
-#include "base/utf_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
 #include "base/version.h"
 #include "xwalk/application/common/application_manifest_constants.h"
 #include "xwalk/application/common/id_util.h"
 #include "xwalk/application/common/constants.h"
 #include "xwalk/application/common/manifest.h"
+#include "xwalk/application/common/manifest_handler.h"
 #include "content/public/common/url_constants.h"
-#include "googleurl/src/url_util.h"
+#include "url/url_util.h"
 #include "ui/base/l10n/l10n_util.h"
+
+#if defined(OS_TIZEN_MOBILE)
+#include "xwalk/tizen/appcore_context.h"
+#endif
 
 namespace keys = xwalk::application_manifest_keys;
 namespace errors = xwalk::application_manifest_errors;
@@ -195,7 +200,14 @@ bool Application::Init(string16* error) {
     return false;
 
   application_url_ = Application::GetBaseURLFromApplicationId(ID());
+
+  if (!ManifestHandlerRegistry::GetInstance()->ParseAppManifest(this, error))
+    return false;
+
   finished_parsing_manifest_ = true;
+#if defined(OS_TIZEN_MOBILE)
+  appcore_context_ = tizen::AppcoreContext::Create();
+#endif
   return true;
 }
 

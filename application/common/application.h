@@ -14,7 +14,6 @@
 #include <vector>
 
 #include "base/files/file_path.h"
-#include "base/hash_tables.h"
 #include "base/memory/linked_ptr.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/scoped_ptr.h"
@@ -22,13 +21,19 @@
 #include "base/threading/thread_checker.h"
 #include "xwalk/application/common/manifest.h"
 #include "xwalk/application/common/install_warning.h"
-#include "googleurl/src/gurl.h"
+#include "url/gurl.h"
 
 namespace base {
 class DictionaryValue;
 class ListValue;
 class Version;
 }
+
+#if defined(OS_TIZEN_MOBILE)
+namespace tizen {
+class AppcoreContext;
+}
+#endif
 
 namespace xwalk {
 namespace application {
@@ -176,6 +181,10 @@ class Application : public base::RefCountedThreadSafe<Application> {
   // initialization happens from the same thread (this can happen when certain
   // parts of the initialization process need information from previous parts).
   base::ThreadChecker thread_checker_;
+
+#if defined(OS_TIZEN_MOBILE)
+  scoped_ptr<tizen::AppcoreContext> appcore_context_;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(Application);
 };

@@ -1,15 +1,28 @@
 ''' This file indicate the dependencies crosswalk lays on.
-    DO NOT use this DEPS to checkout code, it's for tools/fetch_deps.py.
+    DO NOT use this DEPS to checkout code, it's for tools/generate_gclient-xwalk.py.
 '''
 
 # chromium_version is the version of chromium crosswalk based,
 # Usually it's major.minor.build.patch
 # Use 'Trunk' for trunk.
 # If using trunk, will use '.DEPS.git' for gclient.
-chromium_version = '28.0.1500.36'
-chromium_crosswalk_point = '83264bebfaee4acd7500cfac402c0530f031141c'
-blink_crosswalk_point = 'abfee977cd60a915a094f247ff81f9d17dc85efe'
+chromium_version = '32.0.1700.14'
+chromium_crosswalk_point = '1acc1e54fdc8088db25f0951ec5ae3bf513bddf7'
+blink_crosswalk_point = '406ead10374ecc6a9271c5074f5861e17c43432f'
 deps_xwalk = {
-  'src': 'ssh://git@github.com/otcshare/chromium-crosswalk.git@%s' % chromium_crosswalk_point,
-  'src/third_party/WebKit': 'ssh://git@github.com/otcshare/blink-crosswalk.git@%s' % blink_crosswalk_point,
+  'src': 'https://github.com/crosswalk-project/chromium-crosswalk.git@%s' % chromium_crosswalk_point,
+  'src/third_party/WebKit': 'https://github.com/crosswalk-project/blink-crosswalk.git@%s' % blink_crosswalk_point,
+
+  # Required until chromium-crosswalk gets past Chromium r234545 ("Rolling
+  # grit-i18n to latest version"). This is used for incremental Tizen builds to
+  # work.
+  'src/tools/grit': 'http://grit-i18n.googlecode.com/svn/trunk@138',
+
+  # Required until chromium-crosswalk tracks gyp r1797 or later.
+  # Needed for incremental Tizen builds after M32. See XWALK-454.
+  'src/tools/gyp': 'http://gyp.googlecode.com/svn/trunk@1797',
+
+  'src/third_party/openmax_dl': 'http://webrtc.googlecode.com/svn/deps/third_party/openmax@5124',
+}
+vars_xwalk = {
 }

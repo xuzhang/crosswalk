@@ -7,9 +7,9 @@
 #include "base/basictypes.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
-#include "base/stringprintf.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/string_split.h"
-#include "base/utf_string_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "xwalk/application/common/application_manifest_constants.h"
 
 namespace errors = xwalk::application_manifest_errors;
@@ -27,7 +27,7 @@ Manifest::Manifest(SourceType source_type,
     if (data_->Get(keys::kWebURLsKey, NULL) ||
         data_->Get(keys::kLaunchWebURLKey, NULL)) {
       type_ = TYPE_HOSTED_APP;
-    } else if (data_->Get(keys::kPlatformAppBackgroundKey, NULL) ||
+    } else if (data_->Get(keys::kAppMainKey, NULL) ||
                data_->Get(keys::kLaunchLocalPathKey, NULL)) {
       type_ = TYPE_PACKAGED_APP;
     }

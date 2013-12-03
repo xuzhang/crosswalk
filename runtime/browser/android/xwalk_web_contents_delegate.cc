@@ -6,9 +6,10 @@
 
 #include "base/android/scoped_java_ref.h"
 #include "base/lazy_instance.h"
-#include "base/message_loop.h"
+#include "base/message_loop/message_loop.h"
 #include "content/public/browser/web_contents.h"
 #include "jni/XWalkWebContentsDelegate_jni.h"
+#include "xwalk/runtime/browser/media/media_capture_devices_dispatcher.h"
 #include "xwalk/runtime/browser/runtime_file_select_helper.h"
 #include "xwalk/runtime/browser/runtime_javascript_dialog_manager.h"
 
@@ -86,6 +87,30 @@ XWalkWebContentsDelegate::GetJavaScriptDialogManager() {
     javascript_dialog_manager_.reset(new RuntimeJavaScriptDialogManager);
   }
   return javascript_dialog_manager_.get();
+}
+
+void XWalkWebContentsDelegate::RequestMediaAccessPermission(
+    content::WebContents* web_contents,
+    const content::MediaStreamRequest& request,
+    const content::MediaResponseCallback& callback) {
+  XWalkMediaCaptureDevicesDispatcher::RunRequestMediaAccessPermission(
+      web_contents, request, callback);
+}
+
+void XWalkWebContentsDelegate::RendererUnresponsive(WebContents* source) {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jobject> obj = GetJavaDelegate(env);
+  if (obj.is_null())
+    return;
+  Java_XWalkWebContentsDelegate_rendererUnresponsive(env, obj.obj());
+}
+
+void XWalkWebContentsDelegate::RendererResponsive(WebContents* source) {
+  JNIEnv* env = AttachCurrentThread();
+  ScopedJavaLocalRef<jobject> obj = GetJavaDelegate(env);
+  if (obj.is_null())
+    return;
+  Java_XWalkWebContentsDelegate_rendererResponsive(env, obj.obj());
 }
 
 bool RegisterXWalkWebContentsDelegate(JNIEnv* env) {

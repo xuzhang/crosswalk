@@ -16,7 +16,7 @@
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/favicon_url.h"
-#include "googleurl/src/gurl.h"
+#include "url/gurl.h"
 #include "ui/gfx/image/image.h"
 
 namespace content {
@@ -39,9 +39,14 @@ class Runtime : public content::WebContentsDelegate,
                 public NativeAppWindowDelegate {
  public:
   // Create a new Runtime instance with the given browsing context.
-  static Runtime* Create(RuntimeContext* runtime_context, const GURL& url);
-  // Create a new Runtime instance for the given web contents.
-  static Runtime* CreateFromWebContents(content::WebContents* web_contents);
+  static Runtime* Create(RuntimeContext*, const GURL&);
+  // Create a new Runtime instance which binds to a default app window.
+  static Runtime* CreateWithDefaultWindow(RuntimeContext*, const GURL&);
+
+  // Attach to a default app window.
+  void AttachDefaultWindow();
+  // Attach to a app window created with 'params'.
+  void AttachWindow(const NativeAppWindow::CreateParams& params);
 
   void LoadURL(const GURL& url);
   void Close();
@@ -56,10 +61,7 @@ class Runtime : public content::WebContentsDelegate,
   explicit Runtime(content::WebContents* web_contents);
   virtual ~Runtime();
 
-  // Initialize the app window.
-  void InitAppWindow(const NativeAppWindow::CreateParams& params);
-
-  // Overridden from content::WebContentsDelegate:
+    // Overridden from content::WebContentsDelegate:
   virtual content::WebContents* OpenURLFromTab(
       content::WebContents* source,
       const content::OpenURLParams& params) OVERRIDE;
@@ -93,9 +95,7 @@ class Runtime : public content::WebContentsDelegate,
       const content::NativeWebKeyboardEvent& event) OVERRIDE;
   virtual content::ColorChooser* OpenColorChooser(
       content::WebContents* web_contents,
-      int color_chooser_id,
-      SkColor color) OVERRIDE;
-  virtual void DidEndColorChooser() OVERRIDE;
+      SkColor initial_color) OVERRIDE;
   virtual void RunFileChooser(
       content::WebContents* web_contents,
       const content::FileChooserParams& params) OVERRIDE;
@@ -110,12 +110,14 @@ class Runtime : public content::WebContentsDelegate,
   // Overridden from content::WebContentsObserver.
   virtual void DidUpdateFaviconURL(int32 page_id,
       const std::vector<content::FaviconURL>& candidates) OVERRIDE;
+  virtual void RenderProcessGone(base::TerminationStatus status) OVERRIDE;
 
   // Callback method for WebContents::DownloadImage.
   void DidDownloadFavicon(int id,
+                          int http_status_code,
                           const GURL& image_url,
-                          int requested_size,
-                          const std::vector<SkBitmap>& bitmaps);
+                          const std::vector<SkBitmap>& bitmaps,
+                          const std::vector<gfx::Size>& sizes);
 
   // NotificationObserver
   virtual void Observe(int type,
@@ -139,10 +141,6 @@ class Runtime : public content::WebContentsDelegate,
   gfx::Image app_icon_;
 
   base::WeakPtrFactory<Runtime> weak_ptr_factory_;
-
-  // Currently open color chooser. Non-NULL after OpenColorChooser is called and
-  // before DidEndColorChooser is called.
-  scoped_ptr<content::ColorChooser> color_chooser_;
 
   // Fullscreen options.
   enum FullscreenOptions {

@@ -5,26 +5,32 @@
 #ifndef XWALK_RUNTIME_BROWSER_XWALK_BROWSER_MAIN_PARTS_H_
 #define XWALK_RUNTIME_BROWSER_XWALK_BROWSER_MAIN_PARTS_H_
 
+#include <string>
 #include "base/basictypes.h"
 #include "base/memory/scoped_ptr.h"
+#include "base/memory/scoped_vector.h"
 #include "content/public/browser/browser_main_parts.h"
 #include "content/public/common/main_function_params.h"
-#include "googleurl/src/gurl.h"
+#include "url/gurl.h"
+#include "xwalk/extensions/browser/xwalk_extension_service.h"
 
 namespace xwalk {
 
 namespace extensions {
-class XWalkExtensionService;
+class XWalkExtension;
+class XWalkExtensionServer;
 }
 
 class RuntimeContext;
 class RuntimeRegistry;
 class RemoteDebuggingServer;
 
-class XWalkBrowserMainParts : public content::BrowserMainParts {
+class XWalkBrowserMainParts : public content::BrowserMainParts,
+    public extensions::XWalkExtensionService::Delegate {
  public:
   explicit XWalkBrowserMainParts(
       const content::MainFunctionParams& parameters);
+
   virtual ~XWalkBrowserMainParts();
 
   // BrowserMainParts overrides.
@@ -36,31 +42,29 @@ class XWalkBrowserMainParts : public content::BrowserMainParts {
   virtual bool MainMessageLoopRun(int* result_code) OVERRIDE;
   virtual void PostMainMessageLoopRun() OVERRIDE;
 
+  // XWalkExtensionService::Delegate overrides.
+  virtual void RegisterInternalExtensionsInExtensionThreadServer(
+      extensions::XWalkExtensionServer* server) OVERRIDE;
+  virtual void RegisterInternalExtensionsInUIThreadServer(
+      extensions::XWalkExtensionServer* server) OVERRIDE;
+
 #if defined(OS_ANDROID)
-  void SetRuntimeContext(RuntimeContext* context);
-  RuntimeContext* runtime_context() { return runtime_context_; }
-#else
   RuntimeContext* runtime_context() { return runtime_context_.get(); }
+
+  // XWalkExtensionAndroid needs to register its extensions on
+  // XWalkBrowserMainParts so they get correctly registered on-demand
+  // by XWalkExtensionService each time a in_process Server is created.
+  void RegisterExtension(scoped_ptr<extensions::XWalkExtension> extension);
+  void UnregisterExtension(scoped_ptr<extensions::XWalkExtension> extension);
 #endif
   extensions::XWalkExtensionService* extension_service() {
     return extension_service_.get();
   }
 
- private:
+ protected:
   void RegisterExternalExtensions();
-  void RegisterInternalExtensions();
-#if defined(OS_MACOSX)
-  void PreMainMessageLoopStartMac();
-#elif defined(USE_AURA)
-  void PreMainMessageLoopStartAura();
-  void PostMainMessageLoopRunAura();
-#endif
 
-#if defined(OS_ANDROID)
-  RuntimeContext* runtime_context_;
-#else
   scoped_ptr<RuntimeContext> runtime_context_;
-#endif
 
   // An application wide instance to manage all Runtime instances.
   scoped_ptr<RuntimeRegistry> runtime_registry_;
@@ -79,6 +83,7 @@ class XWalkBrowserMainParts : public content::BrowserMainParts {
   // Remote debugger server.
   scoped_ptr<RemoteDebuggingServer> remote_debugging_server_;
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(XWalkBrowserMainParts);
 };
 

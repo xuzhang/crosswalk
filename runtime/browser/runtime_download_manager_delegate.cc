@@ -5,10 +5,6 @@
 
 #include "xwalk/runtime/browser/runtime_download_manager_delegate.h"
 
-#if defined(TOOLKIT_GTK)
-#include <gtk/gtk.h>
-#endif
-
 #if defined(OS_WIN)
 #include <windows.h>
 #include <commdlg.h>
@@ -20,15 +16,15 @@
 #include "base/command_line.h"
 #include "base/file_util.h"
 #include "base/logging.h"
-#include "base/string_util.h"
-#include "base/utf_string_conversions.h"
+#include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_view.h"
-#include "content/shell/shell_switches.h"
-#include "content/shell/webkit_test_controller.h"
+#include "content/shell/common/shell_switches.h"
+#include "content/shell/browser/webkit_test_controller.h"
 #include "net/base/net_util.h"
 
 using content::BrowserThread;
@@ -96,13 +92,19 @@ bool RuntimeDownloadManagerDelegate::ShouldOpenDownload(
   return true;
 }
 
+void RuntimeDownloadManagerDelegate::GetNextId(
+    const content::DownloadIdCallback& callback) {
+  static uint32 next_id = content::DownloadItem::kInvalidId + 1;
+  callback.Run(next_id++);
+}
+
 void RuntimeDownloadManagerDelegate::GenerateFilename(
-    int32 download_id,
+    uint32 download_id,
     const content::DownloadTargetCallback& callback,
     const base::FilePath& generated_name,
     const base::FilePath& suggested_directory) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::FILE));
-  if (!file_util::PathExists(suggested_directory))
+  if (!base::PathExists(suggested_directory))
     file_util::CreateDirectory(suggested_directory);
 
   base::FilePath suggested_path(suggested_directory.Append(generated_name));
@@ -115,7 +117,7 @@ void RuntimeDownloadManagerDelegate::GenerateFilename(
 }
 
 void RuntimeDownloadManagerDelegate::OnDownloadPathGenerated(
-    int32 download_id,
+    uint32 download_id,
     const content::DownloadTargetCallback& callback,
     const base::FilePath& suggested_path) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -132,7 +134,7 @@ void RuntimeDownloadManagerDelegate::OnDownloadPathGenerated(
 }
 
 void RuntimeDownloadManagerDelegate::ChooseDownloadPath(
-    int32 download_id,
+    uint32 download_id,
     const content::DownloadTargetCallback& callback,
     const base::FilePath& suggested_path) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
@@ -162,29 +164,6 @@ void RuntimeDownloadManagerDelegate::ChooseDownloadPath(
 
   if (GetSaveFileName(&save_as))
     result = base::FilePath(std::wstring(save_as.lpstrFile));
-#elif defined(TOOLKIT_GTK)
-  GtkWidget* dialog;
-  gfx::NativeWindow parent_window;
-  std::string base_name = base::FilePath(suggested_path).BaseName().value();
-
-  parent_window = item->GetWebContents()->GetView()->GetTopLevelNativeWindow();
-  dialog = gtk_file_chooser_dialog_new("Save File",
-                                       parent_window,
-                                       GTK_FILE_CHOOSER_ACTION_SAVE,
-                                       GTK_STOCK_CANCEL, GTK_RESPONSE_CANCEL,
-                                       GTK_STOCK_SAVE, GTK_RESPONSE_ACCEPT,
-                                       NULL);
-  gtk_file_chooser_set_do_overwrite_confirmation(GTK_FILE_CHOOSER(dialog),
-                                                 TRUE);
-  gtk_file_chooser_set_current_name(GTK_FILE_CHOOSER(dialog),
-                                    base_name.c_str());
-
-  if (gtk_dialog_run(GTK_DIALOG(dialog)) == GTK_RESPONSE_ACCEPT) {
-    char* filename;
-    filename = gtk_file_chooser_get_filename(GTK_FILE_CHOOSER(dialog));
-    result = base::FilePath(filename);
-  }
-  gtk_widget_destroy(dialog);
 #else
   NOTIMPLEMENTED();
 #endif

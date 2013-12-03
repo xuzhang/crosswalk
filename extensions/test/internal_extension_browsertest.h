@@ -8,42 +8,49 @@
 #include <utility>
 #include <string>
 #include <vector>
-#include "xwalk/extensions/browser/xwalk_extension_internal.h"
+#include "base/timer/timer.h"
+#include "xwalk/extensions/browser/xwalk_extension_function_handler.h"
+#include "xwalk/extensions/common/xwalk_extension.h"
 
-class TestExtension : public xwalk::extensions::XWalkInternalExtension {
+using xwalk::extensions::XWalkExtensionFunctionHandler;
+using xwalk::extensions::XWalkExtensionFunctionInfo;
+
+class TestExtension : public xwalk::extensions::XWalkExtension {
  public:
   TestExtension();
 
-  virtual const char* GetJavaScriptAPI() OVERRIDE;
+  virtual xwalk::extensions::XWalkExtensionInstance* CreateInstance() OVERRIDE;
+};
 
-  virtual XWalkExtension::Context* CreateContext(
-      const XWalkExtension::PostMessageCallback& post_message) OVERRIDE;
+class TestExtensionInstance
+    : public xwalk::extensions::XWalkExtensionInstance {
+ public:
+  typedef std::vector<std::pair<std::string, int> > Database;
 
-  class TestExtensionContext
-      : public xwalk::extensions::XWalkInternalExtension::InternalContext {
-   public:
-    typedef std::vector<std::pair<std::string, int> > Database;
+  TestExtensionInstance();
 
-    TestExtensionContext(
-        const XWalkExtension::PostMessageCallback& post_message);
+  virtual void HandleMessage(scoped_ptr<base::Value> msg) OVERRIDE;
 
-    Database* database() { return &database_; }
+  Database* database() { return &database_; }
 
-   private:
-    void OnClearDatabase(const std::string& function_name,
-                         const std::string& callback_id, base::ListValue* args);
-    void OnAddPerson(const std::string& function_name,
-                     const std::string& callback_id, base::ListValue* args);
-    void OnAddPersonObject(const std::string& function_name,
-                           const std::string& callback_id,
-                           base::ListValue* args);
-    void OnGetAllPersons(const std::string& function_name,
-                         const std::string& callback_id, base::ListValue* args);
-    void OnGetPersonAge(const std::string& function_name,
-                        const std::string& callback_id, base::ListValue* args);
+ private:
+  void OnClearDatabase(scoped_ptr<XWalkExtensionFunctionInfo> info);
+  void OnAddPerson(scoped_ptr<XWalkExtensionFunctionInfo> info);
+  void OnAddPersonObject(scoped_ptr<XWalkExtensionFunctionInfo> info);
+  void OnGetAllPersons(scoped_ptr<XWalkExtensionFunctionInfo> info);
+  void OnGetPersonAge(scoped_ptr<XWalkExtensionFunctionInfo> info);
+  void OnStartHeartbeat(scoped_ptr<XWalkExtensionFunctionInfo> info);
+  void OnStopHeartbeat(scoped_ptr<XWalkExtensionFunctionInfo> info);
 
-    std::vector<std::pair<std::string, int> > database_;
-  };
+  void DispatchHeartbeat();
+
+  std::vector<std::pair<std::string, int> > database_;
+
+  int counter_;
+  scoped_ptr<XWalkExtensionFunctionInfo> heartbeat_info_;
+  base::RepeatingTimer<TestExtensionInstance> timer_;
+
+  XWalkExtensionFunctionHandler handler_;
 };
 
 #endif  // XWALK_EXTENSIONS_TEST_INTERNAL_EXTENSION_BROWSERTEST_H_

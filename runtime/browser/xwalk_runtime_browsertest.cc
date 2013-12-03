@@ -6,10 +6,10 @@
 #include "base/files/file_path.h"
 #include "base/file_util.h"
 #include "base/path_service.h"
-#include "base/process_util.h"
-#include "base/message_loop.h"
-#include "base/string_util.h"
-#include "base/utf_string_conversions.h"
+#include "base/process/launch.h"
+#include "base/message_loop/message_loop.h"
+#include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "xwalk/runtime/browser/image_util.h"
 #include "xwalk/runtime/browser/runtime.h"
 #include "xwalk/runtime/browser/runtime_registry.h"
@@ -29,10 +29,6 @@
 #include "content/public/test/test_utils.h"
 #include "net/base/net_util.h"
 #include "testing/gmock/include/gmock/gmock.h"
-
-#if defined(TOOLKIT_GTK)
-#include <gtk/gtk.h>  // NOLINT(build/include_order)
-#endif
 
 #if defined(USE_AURA)
 #include "ui/aura/window.h"
@@ -85,7 +81,8 @@ class FaviconChangedObserver : public xwalk::RuntimeRegistryObserver {
     EXPECT_EQ(image.Size(), icon.Size());
 
     // Quit the message loop.
-    MessageLoop::current()->PostTask(FROM_HERE, MessageLoop::QuitClosure());
+    base::MessageLoop::current()->PostTask(
+        FROM_HERE, base::MessageLoop::QuitClosure());
   }
 
  private:
@@ -175,7 +172,8 @@ IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, CreateAndCloseRuntime) {
   // Create a new Runtime instance.
   GURL url(test_server()->GetURL("test.html"));
   EXPECT_CALL(observer, OnRuntimeAdded(_)).Times(1);
-  Runtime* new_runtime = Runtime::Create(runtime()->runtime_context(), url);
+  Runtime* new_runtime = Runtime::CreateWithDefaultWindow(
+      runtime()->runtime_context(), url);
   EXPECT_TRUE(url == new_runtime->web_contents()->GetURL());
   EXPECT_EQ(new_runtime, WaitForSingleNewRuntime());
   content::RunAllPendingInMessageLoop();
@@ -203,7 +201,8 @@ IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, LoadURLAndClose) {
 
 IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, CloseNativeWindow) {
   GURL url(test_server()->GetURL("test.html"));
-  Runtime* new_runtime = Runtime::Create(runtime()->runtime_context(), url);
+  Runtime* new_runtime = Runtime::CreateWithDefaultWindow(
+      runtime()->runtime_context(), url);
   size_t len = RuntimeRegistry::Get()->runtimes().size();
   new_runtime->window()->Close();
   content::RunAllPendingInMessageLoop();
@@ -228,7 +227,8 @@ IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, LaunchWithFullscreenWindow) {
   FullscreenNotificationObserver fullscreen_observer;
   GURL url(test_server()->GetURL("test.html"));
   EXPECT_CALL(observer, OnRuntimeAdded(_)).Times(1);
-  Runtime* new_runtime = Runtime::Create(runtime()->runtime_context(), url);
+  Runtime* new_runtime = Runtime::CreateWithDefaultWindow(
+      runtime()->runtime_context(), url);
   content::RunAllPendingInMessageLoop();
   EXPECT_EQ(len + 1, RuntimeRegistry::Get()->runtimes().size());
   fullscreen_observer.Wait();
@@ -280,19 +280,8 @@ IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, GetWindowTitle) {
   EXPECT_EQ(title, title_watcher.WaitAndGetTitle());
 
   NativeAppWindow* window = runtime()->window();
-#if defined(TOOLKIT_GTK)
-  const char* window_title = gtk_window_get_title(window->GetNativeWindow());
-  EXPECT_EQ(title, ASCIIToUTF16(window_title));
-#elif defined(TOOLKIT_VIEWS) && defined(OS_WIN)
-  const int len = title.length() + 1;  // NULL-terminated string.
-  string16 window_title;
-  ::GetWindowText(window->GetNativeWindow(),
-                  WriteInto(&window_title, len), len);
-  EXPECT_EQ(title, window_title);
-#elif defined(USE_AURA)
   string16 window_title = window->GetNativeWindow()->title();
   EXPECT_EQ(title, window_title);
-#endif  // defined(TOOLKIT_GTK)
 }
 
 IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, OpenLinkInNewRuntime) {
@@ -353,3 +342,14 @@ IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, DISABLED_FaviconTest_PNG) {
   content::RunMessageLoop();
   RuntimeRegistry::Get()->RemoveObserver(&observer);
 }
+
+#if defined(OS_TIZEN_MOBILE)
+IN_PROC_BROWSER_TEST_F(XWalkRuntimeTest, LoadTizenWebUiFwFile) {
+  GURL url = xwalk_test_utils::GetTestURL(
+      base::FilePath(), base::FilePath().AppendASCII("tizenwebuifw.html"));
+  string16 title = ASCIIToUTF16("Pass");
+  content::TitleWatcher title_watcher(runtime()->web_contents(), title);
+  xwalk_test_utils::NavigateToURL(runtime(), url);
+  EXPECT_EQ(title, title_watcher.WaitAndGetTitle());
+}
+#endif

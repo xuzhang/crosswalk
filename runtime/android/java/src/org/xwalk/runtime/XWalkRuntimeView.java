@@ -4,9 +4,11 @@
 
 package org.xwalk.runtime;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.util.AttributeSet;
+import android.view.KeyEvent;
 import android.widget.FrameLayout;
 
 /**
@@ -25,14 +27,34 @@ public class XWalkRuntimeView extends FrameLayout {
     private XWalkRuntimeViewProvider mProvider;
 
     /**
-     * Contructs a XWalkRuntimeView with a Context object.
+     * Contructs a XWalkRuntimeView with Activity and library Context. Called
+     * from runtime client.
      *
-     * @param context a Context used by runtime from web app APK.
+     * @param activity the activity from runtime client
+     * @param context a context when creating this package
+     * @param attrs the attributes of the XML tag that is inflating the view
+     */
+    public XWalkRuntimeView(Activity activity, Context libContext, AttributeSet attrs) {
+        super(libContext, attrs);
+
+        // MixContext is needed for cross package because the application
+        // context is different.
+        init(new MixContext(libContext, activity), activity);
+    }
+
+    /**
+     * This is for inflating this view from XML. Called from test shell.
+     * @param context a context to construct View
+     * @param attrs the attributes of the XML tag that is inflating the view
      */
     public XWalkRuntimeView(Context context, AttributeSet attrs) {
         super(context, attrs);
 
-        mProvider = XWalkRuntimeViewProviderFactory.getProvider(context);
+        init(context, (Activity)context);
+    }
+
+    private void init(Context context, Activity activity) {
+        mProvider = XWalkRuntimeViewProviderFactory.getProvider(context, activity);
         this.addView(mProvider.getView(),
                 new FrameLayout.LayoutParams(
                         FrameLayout.LayoutParams.MATCH_PARENT,
@@ -44,11 +66,8 @@ public class XWalkRuntimeView extends FrameLayout {
      *
      * @return the string containing the version information.
      */
-    public static String getVersion() {
-        // TODO(yongsheng): Implement the real version information.
-        // May include our customized information by containing chromium
-        // version info.
-        return "0.1";
+    public String getVersion() {
+        return mProvider.getVersion();
     }
 
     /**
@@ -141,5 +160,26 @@ public class XWalkRuntimeView extends FrameLayout {
      */
     public void disableRemoteDebugging() {
         mProvider.disableRemoteDebugging();
+    }
+
+    @Override
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        // Passdown the key-up event to runtime core.
+        if (mProvider.onKeyUp(keyCode, event)) return true;
+
+        return super.onKeyUp(keyCode, event);
+    }
+
+    // For instrumentation test.
+    public String getTitleForTest() {
+        return mProvider.getTitleForTest();
+    }
+
+    public void setCallbackForTest(Object callback) {
+        mProvider.setCallbackForTest(callback);
+    }
+
+    public void loadDataForTest(String data, String mimeType, boolean isBase64Encoded) {
+        mProvider.loadDataForTest(data, mimeType, isBase64Encoded);
     }
 }

@@ -4,65 +4,75 @@
 
 #include "xwalk/runtime/browser/xwalk_browser_main_parts.h"
 
-#include <string>
+#include <stdlib.h>
 
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/file_util.h"
 #include "base/files/file_path.h"
+#include "base/message_loop/message_loop.h"
 #include "base/strings/string_number_conversions.h"
 #include "xwalk/application/browser/application_process_manager.h"
 #include "xwalk/application/browser/application_system.h"
-#include "xwalk/application/common/application.h"
-#include "xwalk/application/common/application_file_util.h"
-#include "xwalk/application/common/application_manifest_constants.h"
+#include "xwalk/application/extension/application_event_extension.h"
+#include "xwalk/application/extension/application_runtime_extension.h"
 #include "xwalk/experimental/dialog/dialog_extension.h"
-#include "xwalk/extensions/browser/xwalk_extension_service.h"
+#include "xwalk/extensions/common/xwalk_extension_server.h"
+#include "xwalk/extensions/common/xwalk_extension_switches.h"
 #include "xwalk/runtime/browser/devtools/remote_debugging_server.h"
 #include "xwalk/runtime/browser/runtime.h"
 #include "xwalk/runtime/browser/runtime_context.h"
 #include "xwalk/runtime/browser/runtime_registry.h"
 #include "xwalk/runtime/common/xwalk_switches.h"
 #include "xwalk/runtime/extension/runtime_extension.h"
+#include "xwalk/sysapps/raw_socket/raw_socket_extension.h"
 #include "cc/base/switches.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/main_function_params.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/result_codes.h"
-#include "grit/net_resources.h"
 #include "net/base/net_util.h"
-#include "net/base/net_module.h"
-#include "ui/base/layout.h"
-#include "ui/base/resource/resource_bundle.h"
-#include "ui/base/ui_base_paths.h"
+#include "ui/gl/gl_switches.h"
 
-#if defined(OS_ANDROID)
-#include "content/public/browser/android/compositor.h"
-#include "net/android/network_change_notifier_factory_android.h"
-#include "net/base/network_change_notifier.h"
-#include "ui/base/l10n/l10n_util_android.h"
-#endif  // defined(OS_ANDROID)
+#if defined(USE_AURA) && defined(USE_X11)
+#include "ui/base/ime/input_method_initializer.h"
+#include "ui/events/x/touch_factory_x11.h"
+#endif
 
 namespace {
 
-base::StringPiece PlatformResourceProvider(int key) {
-  if (key == IDR_DIR_HEADER_HTML) {
-    base::StringPiece html_data =
-        ui::ResourceBundle::GetSharedInstance().GetRawDataResource(
-            IDR_DIR_HEADER_HTML);
-    return html_data;
-  }
-  return base::StringPiece();
+// FIXME: Compare with method in startup_browser_creator.cc.
+GURL GetURLFromCommandLine(const CommandLine& command_line) {
+  const CommandLine::StringVector& args = command_line.GetArgs();
+
+  if (args.empty())
+    return GURL();
+
+  GURL url(args[0]);
+  if (url.is_valid() && url.has_scheme())
+    return url;
+
+  base::FilePath path(args[0]);
+  if (!path.IsAbsolute())
+    path = MakeAbsoluteFilePath(path);
+
+  return net::FilePathToFileURL(path);
 }
 
 }  // namespace
+
+namespace xswitches {
+// Redefine settings not exposed by content module.
+const char kEnableViewport[] = "enable-viewport";
+const char kEnableOverlayScrollbars[] = "enable-overlay-scrollbars";
+}
 
 namespace xwalk {
 
 XWalkBrowserMainParts::XWalkBrowserMainParts(
     const content::MainFunctionParams& parameters)
     : BrowserMainParts(),
-      startup_url_(chrome::kAboutBlankURL),
+      startup_url_(content::kAboutBlankURL),
       parameters_(parameters),
       run_default_message_loop_(true) {
 }
@@ -70,60 +80,46 @@ XWalkBrowserMainParts::XWalkBrowserMainParts(
 XWalkBrowserMainParts::~XWalkBrowserMainParts() {
 }
 
-#if defined(OS_ANDROID)
-void XWalkBrowserMainParts::SetRuntimeContext(RuntimeContext* context) {
-  runtime_context_ = context;
-}
-#endif
-
 void XWalkBrowserMainParts::PreMainMessageLoopStart() {
-#if !defined(OS_ANDROID)
   CommandLine* command_line = CommandLine::ForCurrentProcess();
-  const CommandLine::StringVector& args = command_line->GetArgs();
+  command_line->AppendSwitch(xswitches::kEnableViewport);
 
-  if (args.empty())
-    return;
+  command_line->AppendSwitch(xswitches::kEnableOverlayScrollbars);
 
-  GURL url(args[0]);
-  if (url.is_valid() && url.has_scheme()) {
-    startup_url_ = url;
-  } else {
-    base::FilePath path(args[0]);
-    if (!path.IsAbsolute())
-      path = MakeAbsoluteFilePath(path);
-    startup_url_ = net::FilePathToFileURL(path);
-  }
-#endif
+  // Enable multithreaded GPU compositing of web content.
+  // This also enables pinch on Tizen.
+  command_line->AppendSwitch(switches::kEnableThreadedCompositing);
 
-#if defined(OS_MACOSX)
-    PreMainMessageLoopStartMac();
-#endif
+  // Show feedback on touch.
+  command_line->AppendSwitch(switches::kEnableGestureTapHighlight);
+
+  // FIXME: Add comment why this is needed on Android and Tizen.
+  command_line->AppendSwitch(switches::kAllowFileAccessFromFiles);
+
+  startup_url_ = GetURLFromCommandLine(*command_line);
 }
 
 void XWalkBrowserMainParts::PostMainMessageLoopStart() {
-#if defined(OS_ANDROID)
-  MessageLoopForUI::current()->Start();
-#endif
 }
 
 void XWalkBrowserMainParts::PreEarlyInitialization() {
-#if defined(OS_ANDROID)
-  net::NetworkChangeNotifier::SetFactory(
-      new net::NetworkChangeNotifierFactoryAndroid());
-
-  CommandLine::ForCurrentProcess()->AppendSwitch(
-      cc::switches::kCompositeToMailbox);
-
-  // Initialize the Compositor.
-  content::Compositor::Initialize();
+#if defined(USE_AURA) && defined(USE_X11)
+    ui::InitializeInputMethodForTesting();
+#endif
+#if defined(OS_LINUX)
+  // FIXME: We disable the setuid sandbox on Linux because we don't ship
+  // the setuid binary. It is important to remember that the seccomp-bpf
+  // sandbox is still fully operational if supported by the kernel. See
+  // issue #496.
+  //
+  // switches::kDisableSetuidSandbox is not being used here because it
+  // doesn't have the CONTENT_EXPORT macro despite the fact it is exposed by
+  // content_switches.h.
+  CommandLine::ForCurrentProcess()->AppendSwitch("disable-setuid-sandbox");
 #endif
 }
 
 int XWalkBrowserMainParts::PreCreateThreads() {
-#if defined(OS_ANDROID)
-  DCHECK(runtime_context_);
-  runtime_context_->InitializeBeforeThreadCreation();
-#endif
   return content::RESULT_CODE_NORMAL_EXIT;
 }
 
@@ -142,7 +138,7 @@ void XWalkBrowserMainParts::RegisterExternalExtensions() {
 
   base::FilePath extensions_dir =
       cmd_line->GetSwitchValuePath(switches::kXWalkExternalExtensionsPath);
-  if (!file_util::DirectoryExists(extensions_dir)) {
+  if (!base::DirectoryExists(extensions_dir)) {
     LOG(WARNING) << "Ignoring non-existent extension directory: "
                  << extensions_dir.AsUTF8Unsafe();
     return;
@@ -152,26 +148,20 @@ void XWalkBrowserMainParts::RegisterExternalExtensions() {
 }
 
 void XWalkBrowserMainParts::PreMainMessageLoopRun() {
-#if defined(OS_ANDROID)
-  net::NetModule::SetResourceProvider(PlatformResourceProvider);
-  if (parameters_.ui_task) {
-    parameters_.ui_task->Run();
-    delete parameters_.ui_task;
-    run_default_message_loop_ = false;
-  }
-
-  DCHECK(runtime_context_);
-  runtime_context_->PreMainMessageLoopRun();
-#else
   runtime_context_.reset(new RuntimeContext);
   runtime_registry_.reset(new RuntimeRegistry);
-  extension_service_.reset(
-      new extensions::XWalkExtensionService(runtime_registry_.get()));
 
-  RegisterInternalExtensions();
-  RegisterExternalExtensions();
+  runtime_registry_->AddObserver(
+      runtime_context_->GetApplicationSystem()->process_manager());
 
   CommandLine* command_line = CommandLine::ForCurrentProcess();
+  if (!command_line->HasSwitch(switches::kInstall) &&
+      !command_line->HasSwitch(switches::kUninstall)) {
+    extension_service_.reset(new extensions::XWalkExtensionService(this));
+
+    RegisterExternalExtensions();
+  }
+
   if (command_line->HasSwitch(switches::kRemoteDebuggingPort)) {
     std::string port_str =
         command_line->GetSwitchValueASCII(switches::kRemoteDebuggingPort);
@@ -186,32 +176,28 @@ void XWalkBrowserMainParts::PreMainMessageLoopRun() {
 
   NativeAppWindow::Initialize();
 
-  if (startup_url_.SchemeIsFile()) {
-    base::FilePath path;
-    if (!net::FileURLToFilePath(startup_url_, &path))
-      return;
-    if (file_util::DirectoryExists(path)) {
-      std::string error;
-      scoped_refptr<xwalk::application::Application> application =
-          xwalk::application::LoadApplication(
-              path,
-              xwalk::application::Manifest::COMMAND_LINE,
-              &error);
-      if (!error.empty())
-        LOG(ERROR) << "Failed to load application: " << error;
-      if (application != NULL) {
-        xwalk::application::ApplicationSystem* system =
-            runtime_context_->GetApplicationSystem();
-        xwalk::application::ApplicationProcessManager* manager =
-            system->process_manager();
-        manager->LaunchApplication(runtime_context_.get(), application);
-        return;
-      }
-    }
+  xwalk::application::ApplicationSystem* app_system =
+      runtime_context_->GetApplicationSystem();
+  if (app_system->HandleApplicationManagementCommands(*command_line,
+                                                      startup_url_)) {
+    run_default_message_loop_ = false;
+    return;
+  }
+
+  if (app_system->is_running_as_service()) {
+    // In service mode, Crosswalk doesn't launch anything, just waits
+    // for external requests to launch apps.
+    VLOG(1) << "Crosswalk running as Service.";
+    return;
+  }
+
+  if (app_system->LaunchFromCommandLine(*command_line, startup_url_,
+                                        &run_default_message_loop_)) {
+    return;
   }
 
   // The new created Runtime instance will be managed by RuntimeRegistry.
-  Runtime::Create(runtime_context_.get(), startup_url_);
+  Runtime::CreateWithDefaultWindow(runtime_context_.get(), startup_url_);
 
   // If the |ui_task| is specified in main function parameter, it indicates
   // that we will run this UI task instead of running the the default main
@@ -222,7 +208,6 @@ void XWalkBrowserMainParts::PreMainMessageLoopRun() {
     delete parameters_.ui_task;
     run_default_message_loop_ = false;
   }
-#endif
 }
 
 bool XWalkBrowserMainParts::MainMessageLoopRun(int* result_code) {
@@ -230,17 +215,30 @@ bool XWalkBrowserMainParts::MainMessageLoopRun(int* result_code) {
 }
 
 void XWalkBrowserMainParts::PostMainMessageLoopRun() {
-#if defined(OS_ANDROID)
-  MessageLoopForUI::current()->Start();
-#else
+  runtime_registry_->RemoveObserver(
+      runtime_context_->GetApplicationSystem()->process_manager());
   runtime_context_.reset();
-#endif
 }
 
-void XWalkBrowserMainParts::RegisterInternalExtensions() {
-  extension_service_->RegisterExtension(new RuntimeExtension());
-  extension_service_->RegisterExtension(
-      new experimental::DialogExtension(runtime_registry_.get()));
+void XWalkBrowserMainParts::RegisterInternalExtensionsInExtensionThreadServer(
+    extensions::XWalkExtensionServer* server) {
+  CHECK(server);
+  server->RegisterExtension(scoped_ptr<XWalkExtension>(new RuntimeExtension()));
+  server->RegisterExtension(scoped_ptr<XWalkExtension>(
+      new experimental::DialogExtension(runtime_registry_.get())));
+  server->RegisterExtension(scoped_ptr<XWalkExtension>(
+      new sysapps::RawSocketExtension()));
+}
+
+void XWalkBrowserMainParts::RegisterInternalExtensionsInUIThreadServer(
+    extensions::XWalkExtensionServer* server) {
+  CHECK(server);
+  DCHECK(runtime_context_);
+  server->RegisterExtension(scoped_ptr<XWalkExtension>(
+      new ApplicationRuntimeExtension(
+          runtime_context_->GetApplicationSystem())));
+  server->RegisterExtension(scoped_ptr<XWalkExtension>(
+      new ApplicationEventExtension(runtime_context_->GetApplicationSystem())));
 }
 
 }  // namespace xwalk

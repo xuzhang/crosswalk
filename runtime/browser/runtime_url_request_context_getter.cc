@@ -6,14 +6,13 @@
 #include "xwalk/runtime/browser/runtime_url_request_context_getter.h"
 
 #include <algorithm>
-#include <vector>
 
 #include "base/logging.h"
-#include "base/string_number_conversions.h"
-#include "base/string_util.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
+#include "base/strings/string_util.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/worker_pool.h"
-#include "xwalk/runtime/browser/runtime_network_delegate.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
@@ -29,16 +28,18 @@
 #include "net/ssl/default_server_bound_cert_store.h"
 #include "net/ssl/server_bound_cert_service.h"
 #include "net/ssl/ssl_config_service_defaults.h"
+#include "net/url_request/data_protocol_handler.h"
+#include "net/url_request/file_protocol_handler.h"
 #include "net/url_request/protocol_intercept_job_factory.h"
 #include "net/url_request/static_http_user_agent_settings.h"
 #include "net/url_request/url_request_context.h"
 #include "net/url_request/url_request_context_storage.h"
 #include "net/url_request/url_request_job_factory_impl.h"
+#include "xwalk/runtime/browser/runtime_network_delegate.h"
 
 #if defined(OS_ANDROID)
-#include "net/url_request/file_protocol_handler.h"
 #include "xwalk/runtime/browser/android/net/android_protocol_handler.h"
-#include "xwalk/runtime/browser/android/net/xwalk_url_request_job_factory.h"
+#include "xwalk/runtime/browser/android/net/url_constants.h"
 #endif
 
 using content::BrowserThread;
@@ -65,8 +66,8 @@ void InstallProtocolHandlers(net::URLRequestJobFactoryImpl* job_factory,
 RuntimeURLRequestContextGetter::RuntimeURLRequestContextGetter(
     bool ignore_certificate_errors,
     const base::FilePath& base_path,
-    MessageLoop* io_loop,
-    MessageLoop* file_loop,
+    base::MessageLoop* io_loop,
+    base::MessageLoop* file_loop,
     content::ProtocolHandlerMap* protocol_handlers)
     : ignore_certificate_errors_(ignore_certificate_errors),
       base_path_(base_path),
@@ -108,6 +109,7 @@ net::URLRequestContext* RuntimeURLRequestContextGetter::GetURLRequestContext() {
         net::HostResolver::CreateDefaultResolver(NULL));
 
     storage_->set_cert_verifier(net::CertVerifier::CreateDefault());
+    storage_->set_transport_security_state(new net::TransportSecurityState);
     storage_->set_proxy_service(
         net::ProxyService::CreateUsingSystemProxyResolver(
         proxy_config_service_.release(),
@@ -116,7 +118,8 @@ net::URLRequestContext* RuntimeURLRequestContextGetter::GetURLRequestContext() {
     storage_->set_ssl_config_service(new net::SSLConfigServiceDefaults);
     storage_->set_http_auth_handler_factory(
         net::HttpAuthHandlerFactory::CreateDefault(host_resolver.get()));
-    storage_->set_http_server_properties(new net::HttpServerPropertiesImpl);
+    storage_->set_http_server_properties(scoped_ptr<net::HttpServerProperties>(
+        new net::HttpServerPropertiesImpl));
 
     base::FilePath cache_path = base_path_.Append(FILE_PATH_LITERAL("Cache"));
     net::HttpCache::DefaultBackend* main_backend =
@@ -131,6 +134,8 @@ net::URLRequestContext* RuntimeURLRequestContextGetter::GetURLRequestContext() {
     net::HttpNetworkSession::Params network_session_params;
     network_session_params.cert_verifier =
         url_request_context_->cert_verifier();
+    network_session_params.transport_security_state =
+        url_request_context_->transport_security_state();
     network_session_params.server_bound_cert_service =
         url_request_context_->server_bound_cert_service();
     network_session_params.proxy_service =
@@ -158,33 +163,31 @@ net::URLRequestContext* RuntimeURLRequestContextGetter::GetURLRequestContext() {
     scoped_ptr<net::URLRequestJobFactoryImpl> job_factory(
         new net::URLRequestJobFactoryImpl());
     InstallProtocolHandlers(job_factory.get(), &protocol_handlers_);
-    storage_->set_job_factory(job_factory.release());
-  }
-
-#if defined(OS_ANDROID)
-  if (!job_factory_) {
-    scoped_ptr<XWalkURLRequestJobFactory> job_factory(
-        new XWalkURLRequestJobFactory);
     bool set_protocol = job_factory->SetProtocolHandler(
-        chrome::kFileScheme, new net::FileProtocolHandler());
+        chrome::kDataScheme,
+        new net::DataProtocolHandler);
     DCHECK(set_protocol);
-
-    typedef std::vector<net::URLRequestJobFactory::ProtocolHandler*>
-        ProtocolHandlerVector;
-    ProtocolHandlerVector protocol_interceptors;
-    protocol_interceptors.push_back(CreateAssetFileProtocolHandler().release());
-
-    job_factory_ = job_factory.PassAs<net::URLRequestJobFactory>();
-    for (ProtocolHandlerVector::reverse_iterator
-            i = protocol_interceptors.rbegin();
-        i != protocol_interceptors.rend();
-        ++i) {
-      job_factory_.reset(new net::ProtocolInterceptJobFactory(
-          job_factory_.Pass(), make_scoped_ptr(*i)));
-    }
-    url_request_context_->set_job_factory(job_factory_.get());
-  }
+    set_protocol = job_factory->SetProtocolHandler(
+        chrome::kFileScheme,
+        new net::FileProtocolHandler(
+            content::BrowserThread::GetBlockingPool()->
+            GetTaskRunnerWithShutdownBehavior(
+                base::SequencedWorkerPool::SKIP_ON_SHUTDOWN)));
+    DCHECK(set_protocol);
+#if defined(OS_ANDROID)
+    set_protocol = job_factory->SetProtocolHandler(
+        xwalk::kContentScheme,
+        CreateContentSchemeProtocolHandler().release());
+    DCHECK(set_protocol);
+    net::ProtocolInterceptJobFactory* intercept_job_factory =
+        new net::ProtocolInterceptJobFactory(
+            job_factory.PassAs<net::URLRequestJobFactory>(),
+            CreateAssetFileProtocolHandler());
+    storage_->set_job_factory(intercept_job_factory);
+#else
+    storage_->set_job_factory(job_factory.release());
 #endif
+  }
 
   return url_request_context_.get();
 }

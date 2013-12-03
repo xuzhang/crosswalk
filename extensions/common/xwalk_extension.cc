@@ -9,20 +9,40 @@
 namespace xwalk {
 namespace extensions {
 
-XWalkExtension::XWalkExtension() {}
+XWalkExtension::XWalkExtension()
+  : permissions_delegate_(NULL) {}
 
 XWalkExtension::~XWalkExtension() {}
 
-XWalkExtension::Context::Context(const PostMessageCallback& post_message)
-    : post_message_(post_message) {
+const base::ListValue& XWalkExtension::entry_points() const {
+  return entry_points_;
 }
 
-XWalkExtension::Context::~Context() {}
+bool XWalkExtension::CheckAPIAccessControl(std::string app_id,
+    std::string api_name) {
+  if (!permissions_delegate_) {
+      return true;
+  }
+  return permissions_delegate_->CheckAPIAccessControl(name_, app_id, api_name);
+}
 
-scoped_ptr<base::Value> XWalkExtension::Context::HandleSyncMessage(
+XWalkExtensionInstance::XWalkExtensionInstance() {}
+
+XWalkExtensionInstance::~XWalkExtensionInstance() {}
+
+void XWalkExtensionInstance::SetPostMessageCallback(
+    const PostMessageCallback& callback) {
+  post_message_ = callback;
+}
+
+void XWalkExtensionInstance::SetSendSyncReplyCallback(
+    const SendSyncReplyCallback& callback) {
+  send_sync_reply_ = callback;
+}
+
+void XWalkExtensionInstance::HandleSyncMessage(
     scoped_ptr<base::Value> msg) {
   LOG(FATAL) << "Sending sync message to extension which doesn't support it!";
-  return scoped_ptr<base::Value>(base::Value::CreateNullValue());
 }
 
 }  // namespace extensions

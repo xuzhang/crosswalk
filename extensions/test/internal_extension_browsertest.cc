@@ -8,54 +8,68 @@
 #include "base/logging.h"
 #include "content/public/test/browser_test_utils.h"
 #include "content/public/test/test_utils.h"
-#include "xwalk/extensions/browser/xwalk_extension_service.h"
-#include "xwalk/extensions/test/generated_api.h"
+#include "xwalk/grit/xwalk_extensions_resources.h"
+#include "ui/base/resource/resource_bundle.h"
+#include "xwalk/extensions/common/xwalk_extension_server.h"
 #include "xwalk/extensions/test/test.h"
 #include "xwalk/extensions/test/xwalk_extensions_test_base.h"
 #include "xwalk/runtime/browser/runtime.h"
 #include "xwalk/test/base/xwalk_test_utils.h"
 
-extern const char kSource_internal_extension_browsertest_api[];
-
 using namespace xwalk::extensions; // NOLINT
-using namespace xwalk::jsapi_test::test; // NOLINT
+using namespace xwalk::jsapi::test; // NOLINT
 
 TestExtension::TestExtension() {
   set_name("test");
+  set_javascript_api(ResourceBundle::GetSharedInstance().GetRawDataResource(
+      IDR_XWALK_EXTENSIONS_TESTS_INTERNAL_EXTENSION_BROWSERTEST_API)
+                     .as_string());
 }
 
-const char* TestExtension::GetJavaScriptAPI() {
-  return kSource_internal_extension_browsertest_api;
+XWalkExtensionInstance* TestExtension::CreateInstance() {
+  return new TestExtensionInstance();
 }
 
-XWalkExtension::Context* TestExtension::CreateContext(
-    const XWalkExtension::PostMessageCallback& post_message) {
-  return new TestExtensionContext(post_message);
+TestExtensionInstance::TestExtensionInstance() : counter_(0), handler_(this) {
+  handler_.Register("clearDatabase",
+      base::Bind(&TestExtensionInstance::OnClearDatabase,
+                 base::Unretained(this)));
+  handler_.Register("addPerson",
+      base::Bind(&TestExtensionInstance::OnAddPerson,
+                 base::Unretained(this)));
+  handler_.Register("addPersonObject",
+      base::Bind(&TestExtensionInstance::OnAddPersonObject,
+                 base::Unretained(this)));
+  handler_.Register("getAllPersons",
+      base::Bind(&TestExtensionInstance::OnGetAllPersons,
+                 base::Unretained(this)));
+  handler_.Register("getPersonAge",
+      base::Bind(&TestExtensionInstance::OnGetPersonAge,
+                 base::Unretained(this)));
+  handler_.Register("startHeartbeat",
+      base::Bind(&TestExtensionInstance::OnStartHeartbeat,
+                 base::Unretained(this)));
+  handler_.Register("stopHeartbeat",
+      base::Bind(&TestExtensionInstance::OnStopHeartbeat,
+                 base::Unretained(this)));
 }
 
-TestExtension::TestExtensionContext::TestExtensionContext(
-    const XWalkExtension::PostMessageCallback& post_message)
-    : InternalContext(post_message) {
-  RegisterFunction("clearDatabase", &TestExtensionContext::OnClearDatabase);
-  RegisterFunction("addPerson", &TestExtensionContext::OnAddPerson);
-  RegisterFunction("addPersonObject", &TestExtensionContext::OnAddPersonObject);
-  RegisterFunction("getAllPersons", &TestExtensionContext::OnGetAllPersons);
-  RegisterFunction("getPersonAge", &TestExtensionContext::OnGetPersonAge);
+void TestExtensionInstance::HandleMessage(scoped_ptr<base::Value> msg) {
+  handler_.HandleMessage(msg.Pass());
 }
 
-void TestExtension::TestExtensionContext::OnClearDatabase(const std::string&,
-                                                          const std::string&,
-                                                          base::ListValue*) {
+void TestExtensionInstance::OnClearDatabase(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
   database()->clear();
 }
 
-void TestExtension::TestExtensionContext::OnAddPerson(
-    const std::string& function_name, const std::string&,
-    base::ListValue* args) {
-  scoped_ptr<AddPerson::Params> params(AddPerson::Params::Create(*args));
+void TestExtensionInstance::OnAddPerson(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
+  scoped_ptr<AddPerson::Params>
+      params(AddPerson::Params::Create(*info->arguments()));
 
   if (!params) {
-    LOG(WARNING) << "Malformed parameters passed to " << function_name;
+    LOG(WARNING) << "Malformed parameters passed to " << info->name();
     return;
   }
 
@@ -63,14 +77,13 @@ void TestExtension::TestExtensionContext::OnAddPerson(
   database()->push_back(person);
 }
 
-void TestExtension::TestExtensionContext::OnAddPersonObject(
-    const std::string& function_name, const std::string&,
-    base::ListValue* args) {
+void TestExtensionInstance::OnAddPersonObject(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
   scoped_ptr<AddPersonObject::Params>
-      params(AddPersonObject::Params::Create(*args));
+      params(AddPersonObject::Params::Create(*info->arguments()));
 
   if (!params) {
-    LOG(WARNING) << "Malformed parameters passed to " << function_name;
+    LOG(WARNING) << "Malformed parameters passed to " << info->name();
     return;
   }
 
@@ -78,17 +91,13 @@ void TestExtension::TestExtensionContext::OnAddPersonObject(
   database()->push_back(person);
 }
 
-void TestExtension::TestExtensionContext::OnGetAllPersons(
-    const std::string& function_name, const std::string& callback_id,
-    base::ListValue* args) {
-  if (callback_id.empty())
-    return;
-
+void TestExtensionInstance::OnGetAllPersons(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
   scoped_ptr<GetAllPersons::Params>
-      params(GetAllPersons::Params::Create(*args));
+      params(GetAllPersons::Params::Create(*info->arguments()));
 
   if (!params) {
-    LOG(WARNING) << "Malformed parameters passed to " << function_name;
+    LOG(WARNING) << "Malformed parameters passed to " << info->name();
     return;
   }
 
@@ -103,21 +112,16 @@ void TestExtension::TestExtensionContext::OnGetAllPersons(
     persons.push_back(person);
   }
 
-  PostResult(callback_id,
-             GetAllPersons::Results::Create(persons, max_size));
+  info->PostResult(GetAllPersons::Results::Create(persons, max_size));
 }
 
-void TestExtension::TestExtensionContext::OnGetPersonAge(
-    const std::string& function_name, const std::string& callback_id,
-    base::ListValue* args) {
-  if (callback_id.empty())
-    return;
-
+void TestExtensionInstance::OnGetPersonAge(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
   scoped_ptr<GetPersonAge::Params>
-      params(GetPersonAge::Params::Create(*args));
+      params(GetPersonAge::Params::Create(*info->arguments()));
 
   if (!params) {
-    LOG(WARNING) << "Malformed parameters passed to " << function_name;
+    LOG(WARNING) << "Malformed parameters passed to " << info->name();
     return;
   }
 
@@ -128,25 +132,42 @@ void TestExtension::TestExtensionContext::OnGetPersonAge(
       age = database()->at(i).second;
   }
 
-  PostResult(callback_id, GetPersonAge::Results::Create(age));
+  info->PostResult(GetPersonAge::Results::Create(age));
+}
+
+void TestExtensionInstance::OnStartHeartbeat(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
+  heartbeat_info_.reset(info.release());
+  timer_.Start(FROM_HERE, base::TimeDelta::FromMilliseconds(50),
+               this,
+               &TestExtensionInstance::DispatchHeartbeat);
+}
+
+void TestExtensionInstance::OnStopHeartbeat(
+    scoped_ptr<XWalkExtensionFunctionInfo> info) {
+  timer_.Stop();
+}
+
+void TestExtensionInstance::DispatchHeartbeat() {
+  heartbeat_info_->PostResult(StartHeartbeat::Results::Create(counter_++));
 }
 
 class InternalExtensionTest : public XWalkExtensionsTestBase {
  public:
-  void RegisterExtensions(XWalkExtensionService* extension_service) OVERRIDE {
-    extension_service->RegisterExtension(new TestExtension());
+  void RegisterExtensions(XWalkExtensionServer* server) OVERRIDE {
+    ASSERT_TRUE(RegisterExtensionForTest(server, new TestExtension));
   }
 };
 
 IN_PROC_BROWSER_TEST_F(InternalExtensionTest, InternalExtension) {
   content::RunAllPendingInMessageLoop();
 
-  string16 title = ASCIIToUTF16("Pass");
-  content::TitleWatcher title_watcher(runtime()->web_contents(), title);
+  content::TitleWatcher title_watcher(runtime()->web_contents(), kPassString);
+  title_watcher.AlsoWaitForTitle(kFailString);
 
   GURL url = GetExtensionsTestURL(base::FilePath(),
       base::FilePath().AppendASCII("test_internal_extension.html"));
   xwalk_test_utils::NavigateToURL(runtime(), url);
 
-  EXPECT_EQ(title, title_watcher.WaitAndGetTitle());
+  EXPECT_EQ(kPassString, title_watcher.WaitAndGetTitle());
 }

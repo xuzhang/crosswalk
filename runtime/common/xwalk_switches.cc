@@ -16,10 +16,24 @@ const char kAppIcon[] = "app-icon";
 // Specifies the window whether launched with fullscreen mode.
 const char kFullscreen[] = "fullscreen";
 
+// Specifies list all installed applications.
+const char kListApplications[] = "list-apps";
+
+// Specifies install an application.
+const char kInstall[] = "install";
+
+// Spedifies uninstall an application from runtime.
+const char kUninstall[] = "uninstall";
+
 // Specifies where XWalk will look for external extensions.
 const char kXWalkExternalExtensionsPath[] = "external-extensions-path";
 
 const char kXWalkAllowExternalExtensionsForRemoteSources[] =
     "allow-external-extensions-for-remote-sources";
+
+// Runs Crosswalk in service mode: it loads no application by default but stays
+// alive, and listens for external requests to launch applications. The way to
+// issue these requests is platform-specific.
+const char kXWalkRunAsService[] = "run-as-service";
 
 }  // namespace switches

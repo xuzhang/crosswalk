@@ -6,31 +6,33 @@
 #define XWALK_RUNTIME_EXTENSION_RUNTIME_EXTENSION_H_
 
 #include <string>
-#include "xwalk/extensions/browser/xwalk_extension_internal.h"
+#include "xwalk/extensions/browser/xwalk_extension_function_handler.h"
+#include "xwalk/extensions/common/xwalk_extension.h"
 
 namespace xwalk {
 
 using extensions::XWalkExtension;
-using extensions::XWalkInternalExtension;
+using extensions::XWalkExtensionFunctionHandler;
+using extensions::XWalkExtensionFunctionInfo;
+using extensions::XWalkExtensionInstance;
 
-class RuntimeExtension : public XWalkInternalExtension {
+class RuntimeExtension : public XWalkExtension {
  public:
   RuntimeExtension();
 
-  virtual const char* GetJavaScriptAPI() OVERRIDE;
+  virtual XWalkExtensionInstance* CreateInstance() OVERRIDE;
+};
 
-  virtual XWalkExtension::Context* CreateContext(
-      const XWalkExtension::PostMessageCallback& post_message) OVERRIDE;
+class RuntimeInstance : public XWalkExtensionInstance {
+ public:
+  explicit RuntimeInstance();
 
-  class RuntimeContext : public XWalkInternalExtension::InternalContext {
-   public:
-    explicit RuntimeContext(
-        const XWalkExtension::PostMessageCallback& post_message);
+  virtual void HandleMessage(scoped_ptr<base::Value> msg) OVERRIDE;
 
-   private:
-    void OnGetAPIVersion(const std::string& function_name,
-                         const std::string& callback_id, base::ListValue* args);
-  };
+ private:
+  void OnGetAPIVersion(scoped_ptr<XWalkExtensionFunctionInfo> info);
+
+  XWalkExtensionFunctionHandler handler_;
 };
 
 }  // namespace xwalk

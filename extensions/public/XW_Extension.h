@@ -133,7 +133,7 @@ struct XW_CoreInterface_1 {
   // Register a callback to be executed when the extension will be unloaded.
   //
   // This function should be called only during XW_Initialize().
-  void (*RegisterShutdownCallback)(XW_Extension,
+  void (*RegisterShutdownCallback)(XW_Extension extension,
                                    XW_ShutdownCallback shutdown_callback);
 
   // These two functions are conveniences used to associated arbitrary data
@@ -143,6 +143,8 @@ struct XW_CoreInterface_1 {
   // getting it returns NULL.
   void (*SetInstanceData)(XW_Instance instance, void* data);
   void* (*GetInstanceData)(XW_Instance instance);
+  int (*CheckAPIAccessControl)(XW_Extension extension, const char* app_id,
+       const char* api_name);
 };
 
 typedef struct XW_CoreInterface_1 XW_CoreInterface;
@@ -161,7 +163,7 @@ typedef void (*XW_HandleMessageCallback)(XW_Instance instance,
 
 struct XW_MessagingInterface_1 {
   // Register a callback to be called when the JavaScript code associated
-  // with the extension post a message. Note that the callback will be called
+  // with the extension posts a message. Note that the callback will be called
   // with the XW_Instance that posted the message as well as the message
   // contents.
   void (*Register)(XW_Extension extension,

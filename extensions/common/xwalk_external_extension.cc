@@ -5,6 +5,7 @@
 #include "xwalk/extensions/common/xwalk_external_extension.h"
 
 #include <string>
+#include <vector>
 #include "base/logging.h"
 #include "base/files/file_path.h"
 #include "base/lazy_instance.h"
@@ -13,8 +14,7 @@
 namespace xwalk {
 namespace extensions {
 
-XWalkExternalExtension::XWalkExternalExtension(
-    const base::FilePath& path, base::NativeLibrary native_library)
+XWalkExternalExtension::XWalkExternalExtension(const base::FilePath& path)
     : xw_extension_(0),
       created_instance_callback_(NULL),
       destroyed_instance_callback_(NULL),
@@ -23,10 +23,7 @@ XWalkExternalExtension::XWalkExternalExtension(
       handle_sync_msg_callback_(NULL),
       initialized_(false) {
   std::string error;
-  if (!native_library)
-    native_library = base::LoadNativeLibrary(path, &error);
-
-  base::ScopedNativeLibrary library(native_library);
+  base::ScopedNativeLibrary library(base::LoadNativeLibrary(path, &error));
   if (!library.is_valid()) {
     LOG(WARNING) << "Error loading extension '" << path.AsUTF8Unsafe() << "': "
                  << error;
@@ -68,15 +65,10 @@ bool XWalkExternalExtension::is_valid() {
   return initialized_;
 }
 
-const char* XWalkExternalExtension::GetJavaScriptAPI() {
-  return js_api_.c_str();
-}
-
-XWalkExtension::Context* XWalkExternalExtension::CreateContext(
-    const XWalkExtension::PostMessageCallback& post_message) {
+XWalkExtensionInstance* XWalkExternalExtension::CreateInstance() {
   XW_Instance xw_instance =
       XWalkExternalAdapter::GetInstance()->GetNextXWInstance();
-  return new XWalkExternalContext(this, post_message, xw_instance);
+  return new XWalkExternalInstance(this, xw_instance);
 }
 
 #define RETURN_IF_INITIALIZED(FUNCTION)                          \
@@ -94,7 +86,7 @@ void XWalkExternalExtension::CoreSetExtensionName(const char* name) {
 
 void XWalkExternalExtension::CoreSetJavaScriptAPI(const char* js_api) {
   RETURN_IF_INITIALIZED("SetJavaScriptAPI from CoreInterface");
-  js_api_ = std::string(js_api);
+  set_javascript_api(std::string(js_api));
 }
 
 void XWalkExternalExtension::CoreRegisterInstanceCallbacks(
@@ -122,6 +114,28 @@ void XWalkExternalExtension::SyncMessagingRegister(
   RETURN_IF_INITIALIZED("Register from Internal_SyncMessagingInterface");
   handle_sync_msg_callback_ = callback;
 }
+
+void XWalkExternalExtension::EntryPointsSetExtraJSEntryPoints(
+    const char** entry_points) {
+  RETURN_IF_INITIALIZED("SetExtraJSEntryPoints from EntryPoints");
+  if (!entry_points)
+    return;
+
+  std::vector<std::string> entries;
+  for (int i = 0; entry_points[i]; ++i)
+    entries.push_back(std::string(entry_points[i]));
+
+  set_entry_points(entries);
+}
+
+bool XWalkExternalExtension::PermissionsCheckAPIAccessControl(
+    const char* app_id, const char* api_name) {
+  bool result = CheckAPIAccessControl(std::string(app_id),
+      std::string(api_name));
+  VLOG(0) << "CoreCheckAPIAccessControl result: " << result;
+  return result;
+}
+
 
 }  // namespace extensions
 }  // namespace xwalk

@@ -4,9 +4,12 @@
 
 package org.xwalk.app.runtime;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.util.AttributeSet;
+import android.view.KeyEvent;
+import android.view.View;
 import android.widget.FrameLayout;
 
 import java.lang.reflect.Method;
@@ -20,9 +23,9 @@ import java.util.regex.Pattern;
  *
  * A web application APK should use this class in its Activity.
  */
-
 public class XWalkRuntimeClient extends CrossPackageWrapper {
     private final static String RUNTIME_VIEW_CLASS_NAME = "org.xwalk.runtime.XWalkRuntimeView";
+    private boolean mRuntimeLoaded = false;
     private Object mInstance;
     private Method mLoadAppFromUrl;
     private Method mLoadAppFromManifest;
@@ -33,17 +36,25 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
     private Method mOnActivityResult;
     private Method mEnableRemoteDebugging;
     private Method mDisableRemoteDebugging;
+    private Method mOnKeyUp;
 
-    public XWalkRuntimeClient(Context context, AttributeSet attrs, CrossPackageWrapperExceptionHandler exceptionHandler) {
-        super(context, RUNTIME_VIEW_CLASS_NAME, exceptionHandler, Context.class, AttributeSet.class);
+    // For instrumentation test.
+    private Method mGetTitleForTest;
+    private Method mSetCallbackForTest;
+    private Method mLoadDataForTest;
+
+    public XWalkRuntimeClient(Activity activity, AttributeSet attrs, CrossPackageWrapperExceptionHandler exceptionHandler) {
+        super(activity, RUNTIME_VIEW_CLASS_NAME, exceptionHandler, Activity.class, Context.class, AttributeSet.class);
         Context libCtx = getLibraryContext();
+        mInstance = this.createInstance(activity, libCtx, attrs);
         Method getVersion = lookupMethod("getVersion");
-        String libVersion = (String) invokeMethod(getVersion, null);
+        String libVersion = (String) invokeMethod(getVersion, mInstance);
         if (libVersion == null || !compareVersion(libVersion, getVersion())) {
-            handleException("Library apk is not up to date");
+            handleException(new XWalkRuntimeLibraryException(
+                    XWalkRuntimeLibraryException.XWALK_RUNTIME_LIBRARY_NOT_UP_TO_DATE_CRITICAL));
             return;
         }
-        mInstance = this.createInstance(new MixContext(libCtx, context), attrs);
+        mRuntimeLoaded = true;
         mLoadAppFromUrl = lookupMethod("loadAppFromUrl", String.class);
         mLoadAppFromManifest = lookupMethod("loadAppFromManifest", String.class);
         mOnCreate = lookupMethod("onCreate");
@@ -53,6 +64,7 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
         mOnActivityResult = lookupMethod("onActivityResult", int.class, int.class, Intent.class);
         mEnableRemoteDebugging = lookupMethod("enableRemoteDebugging", String.class, String.class);
         mDisableRemoteDebugging = lookupMethod("disableRemoteDebugging");
+        mOnKeyUp = lookupMethod("onKeyUp", int.class, KeyEvent.class);
     }
 
     /**
@@ -95,6 +107,17 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
         return false;
     }
 
+    @Override
+    public void handleException(Exception e) {
+        if (mRuntimeLoaded) {
+            super.handleException(new XWalkRuntimeLibraryException(
+                    XWalkRuntimeLibraryException.XWALK_RUNTIME_LIBRARY_INVOKE_FAILED, e));
+        } else {
+            super.handleException(new XWalkRuntimeLibraryException(
+                    XWalkRuntimeLibraryException.XWALK_RUNTIME_LIBRARY_LOAD_FAILED, e));
+        }
+    }
+
     public FrameLayout get() {
         return (FrameLayout) mInstance;
     }
@@ -105,7 +128,7 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
      * @return the string containing the version information.
      */
     public static String getVersion() {
-        return "0.1";
+        return XWalkRuntimeClientVersion.XWALK_RUNTIME_CLIENT_VERSION;
     }
 
     /**
@@ -170,7 +193,7 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
      * @param data the data to contain the result data
      */
     public void onActivityResult(int requestCode, int resultCode, Intent data) {
-        invokeMethod(mOnActivityResult, requestCode, resultCode, data);
+        invokeMethod(mOnActivityResult, mInstance, requestCode, resultCode, data);
     }
 
     /**
@@ -183,9 +206,10 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
      *                    default url will be used.
      * @param socketName the unique socket name for setting up socket for
      *                   remote debugging.
+     * @return the url of web socket for remote debugging.
      */
-    public void enableRemoteDebugging(String frontEndUrl, String socketName) {
-        invokeMethod(mEnableRemoteDebugging, mInstance, frontEndUrl, socketName);
+    public String enableRemoteDebugging(String frontEndUrl, String socketName) {
+        return (String) invokeMethod(mEnableRemoteDebugging, mInstance, frontEndUrl, socketName);
     }
 
     /**
@@ -194,5 +218,42 @@ public class XWalkRuntimeClient extends CrossPackageWrapper {
      */
     public void disableRemoteDebugging() {
         invokeMethod(mDisableRemoteDebugging, mInstance);
+    }
+
+    /**
+     * Passdown key-up event to the runtime view.
+     * Usually meet the case of clicking on the back key.
+     */
+    public boolean onKeyUp(int keyCode, KeyEvent event) {
+        return (Boolean) invokeMethod(mOnKeyUp, mInstance, keyCode, event);
+    }
+
+    // The following functions just for instrumentation test.
+    public View getViewForTest() {
+        return (View)mInstance;
+    }
+
+    public String getTitleForTest() {
+        if (mGetTitleForTest == null) {
+            mGetTitleForTest = lookupMethod("getTitleForTest");
+        }
+
+        return (String) invokeMethod(mGetTitleForTest, mInstance);
+    }
+
+    public void setCallbackForTest(Object callback) {
+        if (mSetCallbackForTest == null) {
+            mSetCallbackForTest = lookupMethod("setCallbackForTest", Object.class);
+        }
+
+        invokeMethod(mSetCallbackForTest, mInstance, callback);
+    }
+
+    public void loadDataForTest(String data, String mimeType, boolean isBase64Encoded) {
+        if (mLoadDataForTest == null) {
+            mLoadDataForTest = lookupMethod("loadDataForTest", String.class, String.class, boolean.class);
+        }
+
+        invokeMethod(mLoadDataForTest, mInstance, data, mimeType, isBase64Encoded);
     }
 }

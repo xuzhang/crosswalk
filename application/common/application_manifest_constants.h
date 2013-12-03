@@ -5,21 +5,19 @@
 #ifndef XWALK_APPLICATION_COMMON_APPLICATION_MANIFEST_CONSTANTS_H_
 #define XWALK_APPLICATION_COMMON_APPLICATION_MANIFEST_CONSTANTS_H_
 
-#include <string>
-
-#include "base/basictypes.h"
-#include "googleurl/src/gurl.h"
-
 // Keys used in JSON representation of applications.
 namespace xwalk {
 namespace application_manifest_keys {
   extern const char kAppKey[];
+  extern const char kAppMainKey[];
+  extern const char kAppMainScriptsKey[];
+  extern const char kAppMainSourceKey[];
   extern const char kDescriptionKey[];
   extern const char kLaunchLocalPathKey[];
   extern const char kLaunchWebURLKey[];
   extern const char kManifestVersionKey[];
   extern const char kNameKey[];
-  extern const char kPlatformAppBackgroundKey[];
+  extern const char kPermissionsKey[];
   extern const char kVersionKey[];
   extern const char kWebURLsKey[];
 }  // namespace application_manifest_keys

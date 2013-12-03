@@ -18,21 +18,27 @@
 // ETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN
 //  CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
-#include "xwalk/runtime/browser/xwalk_browser_main_parts.h"
+#include "xwalk/runtime/browser/xwalk_browser_main_parts_mac.h"
 
 #import <Cocoa/Cocoa.h>
 
 #include "base/mac/bundle_locations.h"
-#include "base/memory/scoped_nsobject.h"
+#include "base/mac/scoped_nsobject.h"
 #include "xwalk/runtime/browser/xwalk_application_mac.h"
 
 namespace xwalk {
 
-void XWalkBrowserMainParts::PreMainMessageLoopStartMac() {
+XWalkBrowserMainPartsMac::XWalkBrowserMainPartsMac(
+    const content::MainFunctionParams& parameters)
+    : XWalkBrowserMainParts(parameters) {
+}
+
+void XWalkBrowserMainPartsMac::PreMainMessageLoopStart() {
+  XWalkBrowserMainParts::PreMainMessageLoopStart();
   // Force the NSApplication subclass to be used.
   [XWalkCrApplication sharedApplication];
 
-  scoped_nsobject<NSNib> nib(
+  base::scoped_nsobject<NSNib> nib(
       [[NSNib alloc] initWithNibNamed:@"MainMenu"
                                bundle:base::mac::FrameworkBundle()]);
   [nib instantiateNibWithOwner:NSApp topLevelObjects:nil];

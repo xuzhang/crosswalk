@@ -9,15 +9,17 @@
 #include "base/files/file_path.h"
 #include "base/logging.h"
 #include "base/memory/linked_ptr.h"
-#include "base/process_util.h"
+#include "base/process/launch.h"
 #include "base/run_loop.h"
-#include "base/string_util.h"
+#include "base/strings/string_util.h"
+#include "base/sys_info.h"
 #include "base/test/test_file_util.h"
-#include "xwalk/runtime/app/xwalk_main_delegate.h"
-#include "xwalk/test/base/xwalk_test_suite.h"
 #include "content/public/app/content_main.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/common/content_switches.h"
 #include "content/public/test/test_launcher.h"
+#include "xwalk/runtime/app/xwalk_main_delegate.h"
+#include "xwalk/test/base/xwalk_test_suite.h"
 
 #if defined(OS_WIN)
 #include "content/public/app/startup_helper_win.h"
@@ -28,16 +30,10 @@
 #include "ui/views/focus/accelerator_handler.h"
 #endif
 
-const char kEmptyTestName[] = "InProcessBrowserTest.Empty";
-
 class XWalkTestLauncherDelegate : public content::TestLauncherDelegate {
  public:
   XWalkTestLauncherDelegate() {}
   virtual ~XWalkTestLauncherDelegate() {}
-
-  virtual std::string GetEmptyTestName() OVERRIDE {
-    return kEmptyTestName;
-  }
 
   virtual int RunTestSuite(int argc, char** argv) OVERRIDE {
     return XWalkTestSuite(argc, argv).Run();
@@ -52,6 +48,11 @@ class XWalkTestLauncherDelegate : public content::TestLauncherDelegate {
          iter != switches.end(); ++iter) {
       new_command_line.AppendSwitchNative((*iter).first, (*iter).second);
     }
+
+    // Expose the garbage collector interface, so we can test the object
+    // lifecycle tracker interface.
+    new_command_line.AppendSwitchASCII(
+        switches::kJavaScriptFlags, "--expose-gc");
 
     *command_line = new_command_line;
     return true;
@@ -98,6 +99,7 @@ class XWalkTestLauncherDelegate : public content::TestLauncherDelegate {
 };
 
 int main(int argc, char** argv) {
+  int default_jobs = std::max(1, base::SysInfo::NumberOfProcessors() / 2);
   XWalkTestLauncherDelegate launcher_delegate;
-  return content::LaunchTests(&launcher_delegate, argc, argv);
+  return content::LaunchTests(&launcher_delegate, default_jobs, argc, argv);
 }

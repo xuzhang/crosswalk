@@ -5,9 +5,8 @@
 
 #include "xwalk/runtime/browser/ui/color_chooser.h"
 
-#include "base/message_loop.h"
+#include "base/message_loop/message_loop.h"
 #include "base/threading/thread.h"
-#include "chrome/browser/ui/browser_dialogs.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/color_chooser.h"
 #include "content/public/browser/web_contents.h"
@@ -20,11 +19,14 @@
 class ColorChooserAura : public xwalk::ColorChooser,
                          public views::ColorChooserListener {
  public:
-  ColorChooserAura(
-      int identifier, content::WebContents* web_contents,
-      SkColor initial_color);
+  static ColorChooserAura* Open(content::WebContents* web_contents,
+                                SkColor initial_color);
+
+  ColorChooserAura(content::WebContents* web_contents, SkColor initial_color);
 
  private:
+  static ColorChooserAura* current_color_chooser_;
+
   // content::ColorChooser overrides:
   virtual void End() OVERRIDE;
   virtual void SetSelectedColor(SkColor color) OVERRIDE;
@@ -50,31 +52,31 @@ class ColorChooserAura : public xwalk::ColorChooser,
   DISALLOW_COPY_AND_ASSIGN(ColorChooserAura);
 };
 
-content::ColorChooser* content::ColorChooser::Create(
-    int identifier, content::WebContents* web_contents, SkColor initial_color) {
-  return new ColorChooserAura(identifier, web_contents, initial_color);
-}
+ColorChooserAura* ColorChooserAura::current_color_chooser_ = NULL;
 
-ColorChooserAura::ColorChooserAura(int identifier,
-                                   content::WebContents* web_contents,
+ColorChooserAura::ColorChooserAura(content::WebContents* web_contents,
                                    SkColor initial_color)
-    : xwalk::ColorChooser(identifier),
-      web_contents_(web_contents) {
+    : web_contents_(web_contents) {
   view_ = new views::ColorChooserView(this, initial_color);
   widget_ = views::Widget::CreateWindowWithContext(
       view_, web_contents->GetView()->GetNativeView());
   widget_->SetAlwaysOnTop(true);
   widget_->Show();
   if (IsTesting()) {
-    SetSelectedColor(GetColorForBrowserTest());
     content::BrowserThread::PostTask(content::BrowserThread::UI, FROM_HERE,
-        base::Bind(&ColorChooserAura::End, base::Unretained(this)));
+        base::Bind(&ColorChooserAura::SetSelectedColor,
+                   base::Unretained(this),
+                   GetColorForBrowserTest()));
   }
 }
 
 void ColorChooserAura::OnColorChosen(SkColor color) {
   if (web_contents_)
-    web_contents_->DidChooseColorInColorChooser(identifier(), color);
+    web_contents_->DidChooseColorInColorChooser(color);
+  if (IsTesting()) {
+    content::BrowserThread::PostTask(content::BrowserThread::UI, FROM_HERE,
+        base::Bind(&ColorChooserAura::End, base::Unretained(this)));
+  }
 }
 
 void ColorChooserAura::OnColorChooserDialogClosed() {
@@ -94,11 +96,34 @@ void ColorChooserAura::End() {
 }
 
 void ColorChooserAura::DidEndColorChooser() {
+  DCHECK(current_color_chooser_ == this);
+  current_color_chooser_ = NULL;
   if (web_contents_)
-    web_contents_->DidEndColorChooser(identifier());
+    web_contents_->DidEndColorChooser();
 }
 
 void ColorChooserAura::SetSelectedColor(SkColor color) {
-  if (view_)
+  if (view_) {
     view_->OnColorChanged(color);
+    view_->OnSaturationValueChosen(view_->saturation(), view_->value());
+  }
 }
+
+// static
+ColorChooserAura* ColorChooserAura::Open(
+    content::WebContents* web_contents, SkColor initial_color) {
+  if (current_color_chooser_)
+    current_color_chooser_->End();
+  DCHECK(!current_color_chooser_);
+  current_color_chooser_ = new ColorChooserAura(web_contents, initial_color);
+  return current_color_chooser_;
+}
+
+namespace xwalk {
+
+content::ColorChooser* ShowColorChooser(content::WebContents* web_contents,
+                                        SkColor initial_color) {
+  return ColorChooserAura::Open(web_contents, initial_color);
+}
+
+}  // namespace xwalk

@@ -24,7 +24,7 @@ namespace xwalk {
 // Provides RenderViewHost wrapper functionality for sending WebView-specific
 // IPC messages to the renderer and from there to WebKit.
 class XWalkRenderViewHostExt : public content::WebContentsObserver,
-                            public base::NonThreadSafe {
+                               public base::NonThreadSafe {
  public:
   // To send receive messages to a RenderView we take the WebContents instance,
   // as it internally handles RenderViewHost instances changing underneath us.
@@ -60,6 +60,7 @@ class XWalkRenderViewHostExt : public content::WebContentsObserver,
   // Sets the initial page scale. This overrides initial scale set by
   // the meta viewport tag.
   void SetInitialPageScale(double page_scale_factor);
+  void SetJsOnlineProperty(bool network_up);
 
  private:
   // content::WebContentsObserver implementation.

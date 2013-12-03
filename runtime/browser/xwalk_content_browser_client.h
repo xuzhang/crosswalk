@@ -13,6 +13,7 @@
 
 namespace content {
 class BrowserContext;
+class QuotaPermissionContext;
 class WebContents;
 class WebContentsViewDelegate;
 }
@@ -29,9 +30,6 @@ class RuntimeContext;
 class XWalkContentBrowserClient : public content::ContentBrowserClient {
  public:
   static XWalkContentBrowserClient* Get();
-#if defined(OS_ANDROID)
-  static RuntimeContext* GetRuntimeContext();
-#endif
 
   XWalkContentBrowserClient();
   virtual ~XWalkContentBrowserClient();
@@ -47,6 +45,10 @@ class XWalkContentBrowserClient : public content::ContentBrowserClient {
       const base::FilePath& partition_path,
       bool in_memory,
       content::ProtocolHandlerMap* protocol_handlers) OVERRIDE;
+  virtual void AppendExtraCommandLineSwitches(CommandLine* command_line,
+                                              int child_process_id) OVERRIDE;
+  virtual content::QuotaPermissionContext*
+      CreateQuotaPermissionContext() OVERRIDE;
   virtual content::AccessTokenStore* CreateAccessTokenStore() OVERRIDE;
   virtual content::WebContentsViewDelegate* GetWebContentsViewDelegate(
       content::WebContents* web_contents) OVERRIDE;
@@ -54,11 +56,16 @@ class XWalkContentBrowserClient : public content::ContentBrowserClient {
       content::RenderProcessHost* host) OVERRIDE;
   virtual content::MediaObserver* GetMediaObserver() OVERRIDE;
 
+  void RenderProcessHostGone(content::RenderProcessHost* host);
+
 #if defined(OS_ANDROID)
   virtual void GetAdditionalMappedFilesForChildProcess(
       const CommandLine& command_line,
       int child_process_id,
       std::vector<content::FileDescriptorInfo>* mappings) OVERRIDE;
+  virtual void ResourceDispatcherHostCreated();
+
+  XWalkBrowserMainParts* main_parts() { return main_parts_; }
 #endif
 
  private:

@@ -5,7 +5,7 @@
 #include "xwalk/runtime/browser/geolocation/xwalk_access_token_store.h"
 
 #include "base/bind.h"
-#include "base/message_loop.h"
+#include "base/message_loop/message_loop.h"
 
 XWalkAccessTokenStore::XWalkAccessTokenStore(
     net::URLRequestContextGetter* request_context)
@@ -17,7 +17,7 @@ XWalkAccessTokenStore::~XWalkAccessTokenStore() {
 
 void XWalkAccessTokenStore::LoadAccessTokens(
     const LoadAccessTokensCallbackType& callback) {
-  MessageLoop::current()->PostTask(
+  base::MessageLoop::current()->PostTask(
       FROM_HERE,
       base::Bind(&XWalkAccessTokenStore::DidLoadAccessTokens,
                  request_context_, callback));

@@ -10,11 +10,8 @@
     package="org.xwalk.runtime.lib">
 
     <application android:name="org.xwalk.runtime.lib.RuntimeLibApplication"
-        android:label="XWalkRuntimeLib" android:hardwareAccelerated="true">
+        android:label="XWalkRuntimeLib" android:hardwareAccelerated="true" android:icon="@drawable/crosswalk">
     </application>
 
   <uses-sdk android:minSdkVersion="14" android:targetSdkVersion="17" />
-  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
-  <uses-permission android:name="android.permission.INTERNET"/>
-  <uses-permission android:name="android.permission.WAKE_LOCK"/>
 </manifest>

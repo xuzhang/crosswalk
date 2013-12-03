@@ -4,96 +4,78 @@
 
 #include "xwalk/runtime/browser/ui/native_app_window_views.h"
 
-#include "xwalk/runtime/common/xwalk_notification_types.h"
 #include "content/public/browser/notification_service.h"
-#include "content/public/browser/render_view_host.h"
-#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
-#include "content/public/browser/web_contents_view.h"
-#include "third_party/skia/include/core/SkPaint.h"
+#include "ui/gfx/screen.h"
 #include "ui/views/controls/webview/webview.h"
-#include "ui/views/test/desktop_test_views_delegate.h"
-#include "ui/views/view.h"
-#include "ui/views/views_delegate.h"
 #include "ui/views/widget/desktop_aura/desktop_screen.h"
 #include "ui/views/widget/widget.h"
-#include "ui/views/window/native_frame_view.h"
 #include "xwalk/runtime/browser/ui/top_view_layout_views.h"
+#include "xwalk/runtime/browser/ui/xwalk_views_delegate.h"
+#include "xwalk/runtime/common/xwalk_notification_types.h"
 
-#if defined(USE_AURA)
-#include "ui/aura/env.h"
-#include "ui/aura/root_window.h"
-#include "ui/aura/window.h"
-#include "ui/gfx/screen.h"
+#if defined(OS_WIN)
+#include "ui/views/window/native_frame_view.h"
 #endif
 
-#if defined(OS_WIN) && !defined(USE_AURA)
-#include "ui/gfx/icon_util.h"
+#if defined(OS_TIZEN_MOBILE)
+#include "xwalk/runtime/browser/ui/native_app_window_tizen.h"
 #endif
-
-#if defined(USE_AURA)
-namespace {
-
-views::ViewsDelegate* g_views_delegate_ = NULL;
-
-// ViewDelegate implementation for aura content shell
-class XWalkViewsDelegate : public views::DesktopTestViewsDelegate {
- public:
-    XWalkViewsDelegate() : use_transparent_windows_(false) {
-  }
-
-  virtual ~XWalkViewsDelegate() {
-  }
-
-  void SetUseTransparentWindows(bool transparent) {
-    use_transparent_windows_ = transparent;
-  }
-
-  // Overridden from views::TestViewsDelegate:
-  virtual bool UseTransparentWindows() const OVERRIDE {
-    return use_transparent_windows_;
-  }
-
- private:
-  bool use_transparent_windows_;
-
-  DISALLOW_COPY_AND_ASSIGN(XWalkViewsDelegate);
-};
-
-}  // namespace
-
-#endif  // defined(USE_AURA)
 
 namespace xwalk {
 
 NativeAppWindowViews::NativeAppWindowViews(
     const NativeAppWindow::CreateParams& create_params)
-  : delegate_(create_params.delegate),
+  : create_params_(create_params),
+    delegate_(create_params.delegate),
     web_contents_(create_params.web_contents),
     web_view_(NULL),
+    window_(NULL),
     is_fullscreen_(false),
     minimum_size_(create_params.minimum_size),
     maximum_size_(create_params.maximum_size),
-    resizable_(create_params.resizable) {
+    resizable_(create_params.resizable) {}
+
+NativeAppWindowViews::~NativeAppWindowViews() {}
+
+// Two-step initialization is needed here so that calls done by views::Widget to
+// its delegate during views::Widget::Init() reach the correct implementation --
+// e.g. ViewHierarchyChanged().
+void NativeAppWindowViews::Initialize() {
+  CHECK(!window_);
   window_ = new views::Widget;
-  views::Widget::InitParams params(views::Widget::InitParams::TYPE_WINDOW);
+
+  views::Widget::InitParams params;
   params.delegate = this;
   params.remove_standard_frame = false;
   params.use_system_default_icon = true;
   params.top_level = true;
-  params.bounds = create_params.bounds;
-  params.show_state = create_params.state;
+  params.show_state = create_params_.state;
+#if defined(OS_TIZEN_MOBILE)
+  params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
+  // On Tizen apps are sized to the work area.
+  gfx::Rect bounds =
+      gfx::Screen::GetNativeScreen()->GetPrimaryDisplay().work_area();
+  params.bounds = bounds;
+#else
+  params.type = views::Widget::InitParams::TYPE_WINDOW;
+  params.bounds = create_params_.bounds;
+#endif
+
   window_->Init(params);
 
-  window_->CenterWindow(create_params.bounds.size());
-  if (create_params.state == ui::SHOW_STATE_FULLSCREEN)
+#if defined(OS_TIZEN_MOBILE)
+  // Set the bounds manually to avoid inset.
+  window_->SetBounds(bounds);
+#else
+  window_->CenterWindow(create_params_.bounds.size());
+#endif
+
+  if (create_params_.state == ui::SHOW_STATE_FULLSCREEN)
     SetFullscreen(true);
 
   // TODO(hmin): Need to configure the maximum and minimum size of this window.
   window_->AddObserver(this);
-}
-
-NativeAppWindowViews::~NativeAppWindowViews() {
 }
 
 gfx::NativeWindow NativeAppWindowViews::GetNativeWindow() const {
@@ -182,6 +164,10 @@ bool NativeAppWindowViews::IsFullscreen() const {
   return is_fullscreen_;
 }
 
+TopViewLayout* NativeAppWindowViews::top_view_layout() {
+  return static_cast<TopViewLayout*>(GetLayoutManager());
+}
+
 ////////////////////////////////////////////////////////////
 // WidgetDelegate implementation
 ////////////////////////////////////////////////////////////
@@ -210,7 +196,6 @@ void NativeAppWindowViews::DeleteDelegate() {
   delegate_->OnWindowDestroyed();
   delete this;
 }
-
 gfx::ImageSkia NativeAppWindowViews::GetWindowAppIcon() {
   return GetWindowIcon();
 }
@@ -224,12 +209,12 @@ bool NativeAppWindowViews::ShouldShowWindowTitle() const {
 }
 
 void NativeAppWindowViews::SaveWindowPlacement(const gfx::Rect& bounds,
-                                          ui::WindowShowState show_state) {
+                                               ui::WindowShowState show_state) {
   // TODO(hmin): views::WidgetDelegate::SaveWindowPlacement(bounds, show_state);
 }
 
-bool NativeAppWindowViews::GetSavedWindowPlacement(gfx::Rect* bounds,
-    ui::WindowShowState* show_state) const {
+bool NativeAppWindowViews::GetSavedWindowPlacement(const views::Widget* widget,
+    gfx::Rect* bounds, ui::WindowShowState* show_state) const {
   // TODO(hmin): Get the saved window placement.
   return false;
 }
@@ -243,10 +228,12 @@ bool NativeAppWindowViews::CanMaximize() const {
   return resizable_ && maximum_size_.IsEmpty();
 }
 
+#if defined(OS_WIN)
 views::NonClientFrameView* NativeAppWindowViews::CreateNonClientFrameView(
     views::Widget* widget) {
   return new views::NativeFrameView(widget);
 }
+#endif
 
 ////////////////////////////////////////////////////////////
 // views::View implementation
@@ -257,14 +244,13 @@ void NativeAppWindowViews::ChildPreferredSizeChanged(views::View* child) {
   // us by calling its own function PreferredSizeChanged()). We don't react to
   // changes in preferred size for the content view since we are currently
   // setting its bounds to the maximum size available.
-  TopViewLayout* layout = static_cast<TopViewLayout*>(GetLayoutManager());
-  if (child == layout->top_view())
+  if (child == top_view_layout()->top_view())
     Layout();
 }
 
 void NativeAppWindowViews::ViewHierarchyChanged(
-    bool is_add, views::View *parent, views::View *child) {
-  if (is_add && child == this) {
+    const ViewHierarchyChangedDetails& details) {
+  if (details.is_add && details.child == this) {
     TopViewLayout* layout = new TopViewLayout();
     SetLayoutManager(layout);
 
@@ -297,17 +283,22 @@ void NativeAppWindowViews::OnWidgetBoundsChanged(views::Widget* widget,
 // static
 NativeAppWindow* NativeAppWindow::Create(
     const NativeAppWindow::CreateParams& create_params) {
-  return new NativeAppWindowViews(create_params);
+  NativeAppWindowViews* window;
+#if defined(OS_TIZEN_MOBILE)
+  window = new NativeAppWindowTizen(create_params);
+#else
+  window = new NativeAppWindowViews(create_params);
+#endif
+  window->Initialize();
+  return window;
 }
 
 // static
 void NativeAppWindow::Initialize() {
-#if !defined(OS_WIN) && defined(USE_AURA)
-  CHECK(!g_views_delegate_);
+  CHECK(!views::ViewsDelegate::views_delegate);
   gfx::Screen::SetScreenInstance(
       gfx::SCREEN_TYPE_NATIVE, views::CreateDesktopScreen());
-  g_views_delegate_ = new XWalkViewsDelegate();
-#endif
+  views::ViewsDelegate::views_delegate = new XWalkViewsDelegate();
 }
 
 }  // namespace xwalk

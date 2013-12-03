@@ -13,19 +13,26 @@
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/widget/widget_observer.h"
 
+#if defined(OS_TIZEN_MOBILE)
+#include "xwalk/runtime/browser/tizen/sensor_provider.h"
+#endif
+
 namespace views {
 class WebView;
-class Widget;
 }
 
 namespace xwalk {
 
+class TopViewLayout;
+
 class NativeAppWindowViews : public NativeAppWindow,
-                           public views::WidgetObserver,
-                           public views::WidgetDelegateView {
+                             public views::WidgetObserver,
+                             public views::WidgetDelegateView {
  public:
   explicit NativeAppWindowViews(const NativeAppWindow::CreateParams& params);
   virtual ~NativeAppWindowViews();
+
+  virtual void Initialize();
 
   // NativeAppWindow implementation.
   virtual gfx::NativeWindow GetNativeWindow() const OVERRIDE;
@@ -48,12 +55,19 @@ class NativeAppWindowViews : public NativeAppWindow,
   virtual bool IsMinimized() const OVERRIDE;
   virtual bool IsFullscreen() const OVERRIDE;
 
+  virtual views::Widget* GetWidget() OVERRIDE;
+  virtual const views::Widget* GetWidget() const OVERRIDE;
+
+ protected:
+  TopViewLayout* top_view_layout();
+
+  virtual void ViewHierarchyChanged(
+      const ViewHierarchyChangedDetails& details) OVERRIDE;
+
  private:
   // WidgetDelegate implementation.
   virtual views::View* GetInitiallyFocusedView() OVERRIDE;
   virtual views::View* GetContentsView() OVERRIDE;
-  virtual views::Widget* GetWidget() OVERRIDE;
-  virtual const views::Widget* GetWidget() const OVERRIDE;
   virtual string16 GetWindowTitle() const OVERRIDE;
   virtual void DeleteDelegate() OVERRIDE;
   virtual gfx::ImageSkia GetWindowAppIcon() OVERRIDE;
@@ -61,17 +75,16 @@ class NativeAppWindowViews : public NativeAppWindow,
   virtual bool ShouldShowWindowTitle() const OVERRIDE;
   virtual void SaveWindowPlacement(
       const gfx::Rect& bounds, ui::WindowShowState show_state);
-  virtual bool GetSavedWindowPlacement(
+  virtual bool GetSavedWindowPlacement(const views::Widget* widget,
       gfx::Rect* bounds, ui::WindowShowState* show_state) const OVERRIDE;
   virtual bool CanResize() const OVERRIDE;
   virtual bool CanMaximize() const OVERRIDE;
+#if defined(OS_WIN)
   virtual views::NonClientFrameView* CreateNonClientFrameView(
       views::Widget* widget) OVERRIDE;
-
+#endif
   // views::View implementation.
   virtual void ChildPreferredSizeChanged(views::View* child) OVERRIDE;
-  virtual void ViewHierarchyChanged(
-      bool is_add, views::View *parent, views::View *child) OVERRIDE;
   virtual void OnFocus() OVERRIDE;
   virtual gfx::Size GetMaximumSize() OVERRIDE { return maximum_size_; }
   virtual gfx::Size GetMinimumSize() OVERRIDE { return minimum_size_; }
@@ -83,6 +96,8 @@ class NativeAppWindowViews : public NativeAppWindow,
   virtual void OnWidgetDestroyed(views::Widget* widget) OVERRIDE;
   virtual void OnWidgetBoundsChanged(
       views::Widget* widget, const gfx::Rect& new_bounds) OVERRIDE;
+
+  NativeAppWindow::CreateParams create_params_;
 
   NativeAppWindowDelegate* delegate_;
   content::WebContents* web_contents_;

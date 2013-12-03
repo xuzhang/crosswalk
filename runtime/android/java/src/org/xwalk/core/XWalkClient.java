@@ -69,6 +69,13 @@ public class XWalkClient {
     }
 
     /**
+     * Notify the host application that a web page is closed by calling
+     * window.close().
+     */
+    public void onCloseWindow(XWalkView view) {
+    }
+
+    /**
      * Notify the host application that the XWalkView will load the resource
      * specified by the given url.
      *
@@ -76,6 +83,22 @@ public class XWalkClient {
      * @param url The url of the resource the XWalkView will load.
      */
     public void onLoadResource(XWalkView view, String url) {
+    }
+
+    /**
+     * Notify the host application that the renderer of XWalkView is hung.
+     *
+     * @param view The XWalkView on which the render is hung.
+     */
+    public void onRendererUnresponsive(XWalkView view) {
+    }
+
+    /**
+     * Notify the host application that the renderer of XWalkView is no longer hung.
+     *
+     * @param view The XWalkView which becomes responsive now.
+     */
+    public void onRendererResponsive(XWalkView view) {
     }
 
     /**

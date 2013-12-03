@@ -9,9 +9,8 @@
 #include "base/android/jni_android.h"
 #include "base/android/jni_helper.h"
 #include "base/android/jni_string.h"
-#include "base/string_util.h"
+#include "base/strings/string_util.h"
 #include "content/public/common/url_constants.h"
-#include "googleurl/src/gurl.h"
 #include "jni/AndroidProtocolHandler_jni.h"
 #include "net/base/io_buffer.h"
 #include "net/base/mime_util.h"
@@ -20,10 +19,10 @@
 #include "net/http/http_util.h"
 #include "net/url_request/protocol_intercept_job_factory.h"
 #include "net/url_request/url_request.h"
+#include "url/gurl.h"
 #include "xwalk/runtime/browser/android/net/android_stream_reader_url_request_job.h"
 #include "xwalk/runtime/browser/android/net/input_stream_impl.h"
 #include "xwalk/runtime/browser/android/net/url_constants.h"
-#include "xwalk/runtime/browser/android/net/xwalk_url_request_job_factory.h"
 
 using base::android::AttachCurrentThread;
 using base::android::ClearException;

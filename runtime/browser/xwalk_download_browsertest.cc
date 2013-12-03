@@ -5,8 +5,8 @@
 
 #include "base/file_util.h"
 #include "base/files/file_path.h"
-#include "base/string_util.h"
-#include "base/utf_string_conversions.h"
+#include "base/strings/string_util.h"
+#include "base/strings/utf_string_conversions.h"
 #include "xwalk/runtime/browser/runtime.h"
 #include "xwalk/runtime/browser/runtime_download_manager_delegate.h"
 #include "xwalk/runtime/browser/ui/color_chooser.h"
@@ -74,7 +74,7 @@ IN_PROC_BROWSER_TEST_F(XWalkDownloadBrowserTest, FileDownload) {
   ASSERT_EQ(1u, downloads.size());
   ASSERT_EQ(DownloadItem::COMPLETE, downloads[0]->GetState());
   base::FilePath file(downloads[0]->GetFullPath());
-  ASSERT_TRUE(file_util::ContentsEqual(
+  ASSERT_TRUE(base::ContentsEqual(
       file, xwalk_test_utils::GetTestFilePath(
           base::FilePath().AppendASCII("download"),
           base::FilePath().AppendASCII("test.lib"))));

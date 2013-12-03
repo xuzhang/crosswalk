@@ -8,24 +8,22 @@
 #include <utility>
 
 #include "base/command_line.h"
-#include "base/message_loop.h"
-#include "xwalk/runtime/browser/xwalk_browser_main_parts.h"
-#include "xwalk/runtime/browser/xwalk_content_browser_client.h"
+#include "base/message_loop/message_loop.h"
 #include "xwalk/runtime/browser/image_util.h"
 #include "xwalk/runtime/browser/media/media_capture_devices_dispatcher.h"
 #include "xwalk/runtime/browser/runtime_context.h"
 #include "xwalk/runtime/browser/runtime_file_select_helper.h"
 #include "xwalk/runtime/browser/runtime_registry.h"
+#include "xwalk/runtime/browser/ui/color_chooser.h"
+#include "xwalk/runtime/browser/xwalk_content_browser_client.h"
 #include "xwalk/runtime/common/xwalk_switches.h"
-#include "content/public/browser/color_chooser.h"
-#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/notification_details.h"
 #include "content/public/browser/notification_source.h"
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_view.h"
+#include "content/public/browser/render_process_host.h"
 #include "grit/xwalk_resources.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/image/image_skia.h"
@@ -47,17 +45,19 @@ const int kDefaultHeight = 600;
 Runtime* Runtime::Create(RuntimeContext* runtime_context, const GURL& url) {
   WebContents::CreateParams params(runtime_context, NULL);
   params.routing_id = MSG_ROUTING_NONE;
-  params.initial_size = gfx::Size(kDefaultWidth, kDefaultHeight);
   WebContents* web_contents = WebContents::Create(params);
 
-  Runtime* runtime = Runtime::CreateFromWebContents(web_contents);
+  Runtime* runtime = new Runtime(web_contents);
   runtime->LoadURL(url);
   return runtime;
 }
 
 // static
-Runtime* Runtime::CreateFromWebContents(WebContents* web_contents) {
-  return new Runtime(web_contents);
+Runtime* Runtime::CreateWithDefaultWindow(
+    RuntimeContext* runtime_context, const GURL& url) {
+  Runtime* runtime = Runtime::Create(runtime_context, url);
+  runtime->AttachDefaultWindow();
+  return runtime;
 }
 
 Runtime::Runtime(content::WebContents* web_contents)
@@ -67,9 +67,38 @@ Runtime::Runtime(content::WebContents* web_contents)
       fullscreen_options_(NO_FULLSCREEN)  {
   web_contents_.reset(web_contents);
   web_contents_->SetDelegate(this);
-  runtime_context_ =
-      static_cast<RuntimeContext*>(web_contents->GetBrowserContext());
+  runtime_context_ = RuntimeContext::FromWebContents(web_contents);
+  RuntimeRegistry::Get()->AddRuntime(this);
+}
 
+Runtime::~Runtime() {
+  RuntimeRegistry::Get()->RemoveRuntime(this);
+
+  // Quit the app once the last Runtime instance is removed.
+  if (RuntimeRegistry::Get()->runtimes().empty()) {
+    base::MessageLoop::current()->PostTask(
+        FROM_HERE, base::MessageLoop::QuitClosure());
+  }
+}
+
+void Runtime::AttachDefaultWindow() {
+  NativeAppWindow::CreateParams params;
+  params.delegate = this;
+  params.web_contents = web_contents_.get();
+  params.bounds = gfx::Rect(0, 0, kDefaultWidth, kDefaultHeight);
+  CommandLine* cmd_line = CommandLine::ForCurrentProcess();
+  if (cmd_line->HasSwitch(switches::kFullscreen)) {
+    params.state = ui::SHOW_STATE_FULLSCREEN;
+    fullscreen_options_ |= FULLSCREEN_FOR_LAUNCH;
+  }
+  AttachWindow(params);
+}
+
+void Runtime::AttachWindow(const NativeAppWindow::CreateParams& params) {
+#if defined(OS_ANDROID)
+  NOTIMPLEMENTED();
+#else
+  CHECK(!window_);
   // Set the app icon if it is passed from command line.
   CommandLine* command_line = CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kAppIcon)) {
@@ -82,38 +111,10 @@ Runtime::Runtime(content::WebContents* web_contents)
     app_icon_ = rb.GetNativeImageNamed(IDR_XWALK_ICON_48);
   }
 
-  NativeAppWindow::CreateParams params;
-  params.delegate = this;
-  params.web_contents = web_contents_.get();
-  params.bounds = gfx::Rect(0, 0, kDefaultWidth, kDefaultHeight);
-  CommandLine* cmd_line = CommandLine::ForCurrentProcess();
-  if (cmd_line->HasSwitch(switches::kFullscreen)) {
-    params.state = ui::SHOW_STATE_FULLSCREEN;
-    fullscreen_options_ |= FULLSCREEN_FOR_LAUNCH;
-  }
-
-  InitAppWindow(params);
-
   registrar_.Add(this,
-      content::NOTIFICATION_WEB_CONTENTS_TITLE_UPDATED,
-      content::Source<content::WebContents>(web_contents));
+        content::NOTIFICATION_WEB_CONTENTS_TITLE_UPDATED,
+        content::Source<content::WebContents>(web_contents_.get()));
 
-  RuntimeRegistry::Get()->AddRuntime(this);
-}
-
-
-Runtime::~Runtime() {
-  RuntimeRegistry::Get()->RemoveRuntime(this);
-
-  // Quit the app once the last Runtime instance is removed.
-  if (RuntimeRegistry::Get()->runtimes().empty())
-    MessageLoop::current()->PostTask(FROM_HERE, MessageLoop::QuitClosure());
-}
-
-void Runtime::InitAppWindow(const NativeAppWindow::CreateParams& params) {
-#if defined(OS_ANDROID)
-  NOTIMPLEMENTED();
-#else
   window_ = NativeAppWindow::Create(params);
   if (!app_icon_.IsEmpty())
     window_->UpdateIcon(app_icon_);
@@ -209,7 +210,8 @@ void Runtime::WebContentsCreated(
     const string16& frame_name,
     const GURL& target_url,
     content::WebContents* new_contents) {
-  Runtime::CreateFromWebContents(new_contents);
+  Runtime* new_runtime = new Runtime(new_contents);
+  new_runtime->AttachDefaultWindow();
 }
 
 void Runtime::DidNavigateMainFramePostCommit(
@@ -230,27 +232,8 @@ void Runtime::DeactivateContents(content::WebContents* contents) {
 
 content::ColorChooser* Runtime::OpenColorChooser(
     content::WebContents* web_contents,
-    int color_chooser_id,
-    SkColor color) {
-#if defined(OS_WIN) && !defined(USE_AURA)
-  // On Windows, only create a color chooser if one doesn't exist, because we
-  // can't close the old color chooser dialog.
-  if (!color_chooser_.get())
-    color_chooser_.reset(content::ColorChooser::Create(color_chooser_id,
-                                                       web_contents,
-                                                       color));
-#elif defined(OS_LINUX)
-  if (color_chooser_.get())
-    color_chooser_->End();
-  color_chooser_.reset(content::ColorChooser::Create(color_chooser_id,
-                                                     web_contents,
-                                                     color));
-#endif
-  return color_chooser_.get();
-}
-
-void Runtime::DidEndColorChooser() {
-  color_chooser_.reset();
+    SkColor initial_color) {
+  return xwalk::ShowColorChooser(web_contents, initial_color);
 }
 
 void Runtime::RunFileChooser(
@@ -287,16 +270,21 @@ void Runtime::DidUpdateFaviconURL(int32 page_id,
 
   // We only select the first favicon as the window app icon.
   FaviconURL favicon = candidates[0];
-  // Passing 0 as the |image_size| parameter results in only receiving the first bitmap,
-  // according to content/public/browser/web_contents.h
-  web_contents()->DownloadImage(favicon.icon_url, true, 0 /* image size */,
-      base::Bind(&Runtime::DidDownloadFavicon, weak_ptr_factory_.GetWeakPtr()));
+  // Passing 0 as the |image_size| parameter results in only receiving the first
+  // bitmap, according to content/public/browser/web_contents.h
+  web_contents()->DownloadImage(
+      favicon.icon_url,
+      true,  // Is a favicon
+      0,     // No maximum size
+      base::Bind(
+          &Runtime::DidDownloadFavicon, weak_ptr_factory_.GetWeakPtr()));
 }
 
 void Runtime::DidDownloadFavicon(int id,
+                                 int http_status_code,
                                  const GURL& image_url,
-                                 int requested_size,
-                                 const std::vector<SkBitmap>& bitmaps) {
+                                 const std::vector<SkBitmap>& bitmaps,
+                                 const std::vector<gfx::Size>& sizes) {
   if (bitmaps.empty())
     return;
   app_icon_ = gfx::Image::CreateFrom1xBitmap(bitmaps[0]);
@@ -328,37 +316,16 @@ void Runtime::RequestMediaAccessPermission(
     content::WebContents* web_contents,
     const content::MediaStreamRequest& request,
     const content::MediaResponseCallback& callback) {
-
-  content::MediaStreamDevices devices;
-  // Based on chrome/browser/media/media_stream_devices_controller.cc
-  bool microphone_requested =
-      (request.audio_type == content::MEDIA_DEVICE_AUDIO_CAPTURE);
-  bool webcam_requested =
-      (request.video_type == content::MEDIA_DEVICE_VIDEO_CAPTURE);
-  if (microphone_requested || webcam_requested) {
-    switch (request.request_type) {
-      case content::MEDIA_OPEN_DEVICE:
-        // For open device request pick the desired device or fall back to the
-        // first available of the given type.
-        XWalkMediaCaptureDevicesDispatcher::GetInstance()->GetRequestedDevice(
-            request.requested_device_id,
-            microphone_requested,
-            webcam_requested,
-            &devices);
-        break;
-      case content::MEDIA_DEVICE_ACCESS:
-      case content::MEDIA_GENERATE_STREAM:
-      case content::MEDIA_ENUMERATE_DEVICES:
-        // Get the default devices for the request.
-        XWalkMediaCaptureDevicesDispatcher::GetInstance()->GetRequestedDevice(
-            "",
-            microphone_requested,
-            webcam_requested,
-            &devices);
-        break;
-    }
-  }
-  callback.Run(devices, scoped_ptr<content::MediaStreamUI>());
+  XWalkMediaCaptureDevicesDispatcher::RunRequestMediaAccessPermission(
+      web_contents, request, callback);
 }
+
+void Runtime::RenderProcessGone(base::TerminationStatus status) {
+  content::RenderProcessHost* rph = web_contents_->GetRenderProcessHost();
+  VLOG(1) << "RenderProcess id: " << rph->GetID() << " is gone!";
+
+  XWalkContentBrowserClient::Get()->RenderProcessHostGone(rph);
+}
+
 
 }  // namespace xwalk

@@ -14,9 +14,17 @@ extern const char kAppIcon[];
 
 extern const char kFullscreen[];
 
+extern const char kInstall[];
+
+extern const char kListApplications[];
+
+extern const char kUninstall[];
+
 extern const char kXWalkExternalExtensionsPath[];
 
 extern const char kXWalkAllowExternalExtensionsForRemoteSources[];
+
+extern const char kXWalkRunAsService[];
 
 }  // namespace switches
 

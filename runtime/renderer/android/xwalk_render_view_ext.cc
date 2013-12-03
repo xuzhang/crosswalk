@@ -13,18 +13,18 @@
 #include "content/public/renderer/document_state.h"
 #include "content/public/renderer/render_view.h"
 #include "skia/ext/refptr.h"
-#include "third_party/WebKit/Source/Platform/chromium/public/WebSize.h"
-#include "third_party/WebKit/Source/Platform/chromium/public/WebURL.h"
-#include "third_party/WebKit/Source/Platform/chromium/public/WebVector.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebDataSource.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebDocument.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebElement.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebFrame.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebHitTestResult.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebNode.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebNodeList.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebSecurityOrigin.h"
-#include "third_party/WebKit/Source/WebKit/chromium/public/WebView.h"
+#include "third_party/WebKit/public/platform/WebSize.h"
+#include "third_party/WebKit/public/platform/WebURL.h"
+#include "third_party/WebKit/public/platform/WebVector.h"
+#include "third_party/WebKit/public/web/WebDataSource.h"
+#include "third_party/WebKit/public/web/WebDocument.h"
+#include "third_party/WebKit/public/web/WebElement.h"
+#include "third_party/WebKit/public/web/WebFrame.h"
+#include "third_party/WebKit/public/web/WebHitTestResult.h"
+#include "third_party/WebKit/public/web/WebNode.h"
+#include "third_party/WebKit/public/web/WebNodeList.h"
+#include "third_party/WebKit/public/web/WebSecurityOrigin.h"
+#include "third_party/WebKit/public/web/WebView.h"
 #include "third_party/skia/include/core/SkPicture.h"
 #include "xwalk/runtime/common/android/xwalk_hit_test_data.h"
 #include "xwalk/runtime/common/android/xwalk_render_view_messages.h"
@@ -105,7 +105,7 @@ void PopulateHitTestData(const GURL& absolute_link_url,
     data->img_src = absolute_image_url;
 
   const bool is_javascript_scheme =
-      absolute_link_url.SchemeIs(chrome::kJavaScriptScheme);
+      absolute_link_url.SchemeIs(content::kJavaScriptScheme);
   const bool has_link_url = !absolute_link_url.is_empty();
   const bool has_image_url = !absolute_image_url.is_empty();
 
@@ -177,8 +177,8 @@ bool XWalkRenderViewExt::allowImage(WebKit::WebFrame* frame,
 
   // For compatibility, only blacklist network schemes instead of whitelisting.
   const GURL url(image_url);
-  return !(url.SchemeIs(chrome::kHttpScheme) ||
-           url.SchemeIs(chrome::kHttpsScheme) ||
+  return !(url.SchemeIs(content::kHttpScheme) ||
+           url.SchemeIs(content::kHttpsScheme) ||
            url.SchemeIs(chrome::kFtpScheme));
 }
 
@@ -259,7 +259,7 @@ void XWalkRenderViewExt::OnSetTextZoomLevel(double zoom_level) {
     return;
   // Hide selection and autofill popups.
   render_view()->GetWebView()->hidePopups();
-  render_view()->GetWebView()->setZoomLevel(true, zoom_level);
+  render_view()->GetWebView()->setZoomLevel(zoom_level);
 }
 
 void XWalkRenderViewExt::OnResetScrollAndScaleState() {

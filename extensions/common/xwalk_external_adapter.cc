@@ -5,6 +5,7 @@
 #include "xwalk/extensions/common/xwalk_external_adapter.h"
 
 #include "base/logging.h"
+#include "base/stl_util.h"
 
 namespace xwalk {
 namespace extensions {
@@ -31,7 +32,7 @@ void XWalkExternalAdapter::RegisterExtension(
     XWalkExternalExtension* extension) {
   XW_Extension xw_extension = extension->xw_extension_;
   CHECK(IsValidXWExtension(xw_extension));
-  CHECK(extension_map_.find(xw_extension) == extension_map_.end());
+  CHECK(!ContainsKey(extension_map_, xw_extension));
   extension_map_[xw_extension] = extension;
 }
 
@@ -39,21 +40,21 @@ void XWalkExternalAdapter::UnregisterExtension(
     XWalkExternalExtension* extension) {
   XW_Extension xw_extension = extension->xw_extension_;
   CHECK(IsValidXWExtension(xw_extension));
-  CHECK(extension_map_.find(xw_extension) != extension_map_.end());
+  CHECK(ContainsKey(extension_map_, xw_extension));
   extension_map_.erase(xw_extension);
 }
 
-void XWalkExternalAdapter::RegisterInstance(XWalkExternalContext* context) {
+void XWalkExternalAdapter::RegisterInstance(XWalkExternalInstance* context) {
   XW_Instance xw_instance = context->xw_instance_;
   CHECK(IsValidXWInstance(xw_instance));
-  CHECK(instance_map_.find(xw_instance) == instance_map_.end());
+  CHECK(!ContainsKey(instance_map_, xw_instance));
   instance_map_[xw_instance] = context;
 }
 
-void XWalkExternalAdapter::UnregisterInstance(XWalkExternalContext* context) {
+void XWalkExternalAdapter::UnregisterInstance(XWalkExternalInstance* context) {
   XW_Instance xw_instance = context->xw_instance_;
   CHECK(IsValidXWInstance(xw_instance));
-  CHECK(instance_map_.find(xw_instance) != instance_map_.end());
+  CHECK(ContainsKey(instance_map_, xw_instance));
   instance_map_.erase(xw_instance);
 }
 
@@ -87,6 +88,20 @@ const void* XWalkExternalAdapter::GetInterface(const char* name) {
     return &syncMessagingInterface1;
   }
 
+  if (!strcmp(name, XW_INTERNAL_ENTRY_POINTS_INTERFACE_1)) {
+    static const XW_Internal_EntryPointsInterface_1 entryPointsInterface1 = {
+      EntryPointsSetExtraJSEntryPoints
+    };
+    return &entryPointsInterface1;
+  }
+
+  if (!strcmp(name, XW_INTERNAL_PERMISSIONS_INTERFACE_1)) {
+    static const XW_Internal_PermissionsInterface_1 permissionsInterface1 = {
+      PermissionsCheckAPIAccessControl
+    };
+    return &permissionsInterface1;
+  }
+
   LOG(WARNING) << "Interface '" << name << "' is not supported.";
   return NULL;
 }
@@ -96,23 +111,45 @@ bool XWalkExternalAdapter::IsValidXWExtension(XW_Extension xw_extension) {
 }
 
 bool XWalkExternalAdapter::IsValidXWInstance(XW_Instance xw_instance) {
-  return xw_instance > 0 && xw_instance < next_xw_extension_;
+  return xw_instance > 0 && xw_instance < next_xw_instance_;
 }
 
 XWalkExternalExtension* XWalkExternalAdapter::GetExtension(
     XW_Extension xw_extension) {
   XWalkExternalAdapter* adapter = XWalkExternalAdapter::GetInstance();
   ExtensionMap::iterator it = adapter->extension_map_.find(xw_extension);
-  CHECK(it != adapter->extension_map_.end());
+  if (it == adapter->extension_map_.end())
+    return NULL;
   return it->second;
 }
 
-XWalkExternalContext* XWalkExternalAdapter::GetInstance(
+XWalkExternalInstance* XWalkExternalAdapter::GetInstance(
     XW_Instance xw_instance) {
   XWalkExternalAdapter* adapter = XWalkExternalAdapter::GetInstance();
   InstanceMap::iterator it = adapter->instance_map_.find(xw_instance);
-  CHECK(it != adapter->instance_map_.end());
+  if (it == adapter->instance_map_.end())
+    return NULL;
   return it->second;
+}
+
+// static
+void XWalkExternalAdapter::LogInvalidCall(
+    int32_t value, const char* type,
+    const char* interface, const char* function) {
+  LOG(WARNING) << "Ignoring call to " << interface << " function " << function
+               << " as it received wrong XW_" << type << "=" << value << ".";
+}
+
+int XWalkExternalAdapter::PermissionsCheckAPIAccessControl(XW_Extension xw,
+  const char* app_id, const char* api_name) {
+  XWalkExternalExtension* ptr = GetExtension(xw);
+  if (!ptr) {
+    LogInvalidCall(xw, "Extension", "Permissions", "CheckAPIAccessControl");
+    return 0;
+  } else {
+    bool status = ptr->PermissionsCheckAPIAccessControl(app_id, api_name);
+    return status? 1:0;
+  }
 }
 
 }  // namespace extensions

@@ -59,8 +59,14 @@ void RuntimeJavaScriptDialogManager::RunBeforeUnloadDialog(
 #endif
 }
 
-void RuntimeJavaScriptDialogManager::ResetJavaScriptState(
+void RuntimeJavaScriptDialogManager::CancelActiveAndPendingDialogs(
     content::WebContents* web_contents) {
+  NOTIMPLEMENTED();
+}
+
+void RuntimeJavaScriptDialogManager::WebContentsDestroyed(
+    content::WebContents* web_contents) {
+  NOTIMPLEMENTED();
 }
 
 }  // namespace xwalk

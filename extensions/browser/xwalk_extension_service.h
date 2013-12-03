@@ -9,8 +9,14 @@
 #include <map>
 #include <string>
 #include "base/callback_forward.h"
+#include "base/containers/scoped_ptr_hash_map.h"
 #include "base/files/file_path.h"
-#include "xwalk/runtime/browser/runtime_registry.h"
+#include "base/memory/scoped_ptr.h"
+#include "base/threading/thread.h"
+#include "content/public/browser/notification_observer.h"
+#include "content/public/browser/notification_registrar.h"
+#include "xwalk/extensions/browser/xwalk_extension_process_host.h"
+#include "xwalk/extensions/common/xwalk_extension.h"
 
 namespace content {
 class RenderProcessHost;
@@ -20,20 +26,29 @@ class WebContents;
 namespace xwalk {
 namespace extensions {
 
-class XWalkExtension;
-class XWalkExtensionWebContentsHandler;
+class XWalkExtensionData;
+class XWalkExtensionServer;
 
 // This is the entry point for Crosswalk extensions. Its responsible for keeping
 // track of the extensions, and enable them on WebContents once they are
 // created. It's life time follows the Browser process itself.
-class XWalkExtensionService : public RuntimeRegistryObserver {
+class XWalkExtensionService : public content::NotificationObserver,
+    public XWalkExtensionProcessHost::Delegate,
+    public XWalkExtension::PermissionsDelegate {
  public:
-  explicit XWalkExtensionService(RuntimeRegistry* runtime_registry);
-  virtual ~XWalkExtensionService();
+  class Delegate {
+   public:
+    virtual void RegisterInternalExtensionsInExtensionThreadServer(
+        XWalkExtensionServer* server) {}
+    virtual void RegisterInternalExtensionsInUIThreadServer(
+        XWalkExtensionServer* server) {}
 
-  // Takes |extension| ownership. Returns false if it couldn't be registered
-  // because another one with the same name exists, otherwise returns true.
-  bool RegisterExtension(XWalkExtension* extension);
+   protected:
+    ~Delegate() {}
+  };
+
+  explicit XWalkExtensionService(Delegate* delegate);
+  virtual ~XWalkExtensionService();
 
   void RegisterExternalExtensionsForPath(const base::FilePath& path);
 
@@ -42,38 +57,55 @@ class XWalkExtensionService : public RuntimeRegistryObserver {
   // XWalkContentBrowserClient::RenderProcessHostCreated().
   void OnRenderProcessHostCreated(content::RenderProcessHost* host);
 
-  XWalkExtension* GetExtensionForName(const std::string& name);
+  // To be called when a RenderProcess died, so we can gracefully shutdown the
+  // associated ExtensionProcess. See Runtime::RenderProcessGone() and
+  // XWalkContentBrowserClient::RenderProcessHostGone().
+  void OnRenderProcessDied(content::RenderProcessHost* host);
 
-  void CreateRunnersForHandler(XWalkExtensionWebContentsHandler* handler,
-                               int64_t frame_id);
-
-  // RuntimeRegistryObserver implementation.
-  virtual void OnRuntimeAdded(Runtime* runtime) OVERRIDE;
-  virtual void OnRuntimeRemoved(Runtime* runtime) OVERRIDE {}
-  virtual void OnRuntimeAppIconChanged(Runtime* runtime) OVERRIDE {}
-
-  typedef base::Callback<void(XWalkExtensionService* extension_service)>
+  typedef base::Callback<void(XWalkExtensionServer* server)>
       RegisterExtensionsCallback;
-  static void SetRegisterExtensionsCallbackForTesting(
+
+  static void SetRegisterExtensionThreadExtensionsCallbackForTesting(
+      const RegisterExtensionsCallback& callback);
+  static void SetRegisterUIThreadExtensionsCallbackForTesting(
       const RegisterExtensionsCallback& callback);
 
+  static void SetExternalExtensionsPathForTesting(const base::FilePath& path);
+
+  virtual bool CheckAPIAccessControl(std::string extension_name,
+      std::string app_id, std::string api_name);
+
  private:
-  void RegisterExtensionsForNewHost(content::RenderProcessHost* host);
+  // XWalkExtensionProcessHost::Delegate implementation.
+  virtual void OnExtensionProcessDied(XWalkExtensionProcessHost* eph,
+      int render_process_id) OVERRIDE;
 
-  void CreateWebContentsHandler(content::WebContents* web_contents);
+  // NotificationObserver implementation.
+  virtual void Observe(int type, const content::NotificationSource& source,
+                       const content::NotificationDetails& details) OVERRIDE;
 
-  typedef std::map<std::string, XWalkExtension*> ExtensionMap;
-  ExtensionMap extensions_;
+  void OnRenderProcessHostClosed(content::RenderProcessHost* host);
 
-  RuntimeRegistry* runtime_registry_;
+  void CreateInProcessExtensionServers(content::RenderProcessHost* host,
+      XWalkExtensionData* data);
+  void CreateExtensionProcessHost(content::RenderProcessHost* host,
+      XWalkExtensionData* data);
 
-  // FIXME(cmarcelo): For now we support only one render process host.
-  content::RenderProcessHost* render_process_host_;
+  // The server that handles in process extensions will live in the
+  // extension_thread_.
+  base::Thread extension_thread_;
+
+  content::NotificationRegistrar registrar_;
+
+  Delegate* delegate_;
+
+  base::FilePath external_extensions_path_;
+
+  typedef std::map<int, XWalkExtensionData*> RenderProcessToExtensionDataMap;
+  RenderProcessToExtensionDataMap extension_data_map_;
 
   DISALLOW_COPY_AND_ASSIGN(XWalkExtensionService);
 };
-
-bool ValidateExtensionNameForTesting(const std::string& extension_name);
 
 }  // namespace extensions
 }  // namespace xwalk

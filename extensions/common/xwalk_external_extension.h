@@ -19,7 +19,7 @@ namespace xwalk {
 namespace extensions {
 
 class XWalkExternalAdapter;
-class XWalkExternalContext;
+class XWalkExternalInstance;
 
 // XWalkExternalExtension implements an XWalkExtension backed by a shared
 // library implemented using our C ABI (see XW_Extension.h).
@@ -30,11 +30,7 @@ class XWalkExternalContext;
 // library.
 class XWalkExternalExtension : public XWalkExtension {
  public:
-  // TODO(cmarcelo): Remove extra parameter after old::XWalkExternalExtension is
-  // removed. When |library| is passed we take ownership of it and use |path|
-  // only to print error messages.
-  explicit XWalkExternalExtension(const base::FilePath& path,
-                                  base::NativeLibrary = NULL);
+  explicit XWalkExternalExtension(const base::FilePath& path);
 
   virtual ~XWalkExternalExtension();
 
@@ -42,12 +38,10 @@ class XWalkExternalExtension : public XWalkExtension {
 
  private:
   friend class XWalkExternalAdapter;
-  friend class XWalkExternalContext;
+  friend class XWalkExternalInstance;
 
   // XWalkExtension implementation.
-  virtual const char* GetJavaScriptAPI() OVERRIDE;
-  virtual Context* CreateContext(
-      const PostMessageCallback& post_message) OVERRIDE;
+  virtual XWalkExtensionInstance* CreateInstance() OVERRIDE;
 
   // XW_CoreInterface_1 (from XW_Extension.h) implementation.
   void CoreSetExtensionName(const char* name);
@@ -56,6 +50,10 @@ class XWalkExternalExtension : public XWalkExtension {
       XW_CreatedInstanceCallback created_callback,
       XW_DestroyedInstanceCallback destroyed_callback);
   void CoreRegisterShutdownCallback(XW_ShutdownCallback callback);
+  void EntryPointsSetExtraJSEntryPoints(const char** entry_points);
+
+  bool PermissionsCheckAPIAccessControl(const char* app_id,
+                                        const char* api_name);
 
   // XW_MessagingInterface_1 (from XW_Extension.h) implementation.
   void MessagingRegister(XW_HandleMessageCallback callback);
@@ -72,7 +70,6 @@ class XWalkExternalExtension : public XWalkExtension {
   XW_HandleMessageCallback handle_msg_callback_;
   XW_HandleSyncMessageCallback handle_sync_msg_callback_;
 
-  std::string js_api_;
   bool initialized_;
 
   DISALLOW_COPY_AND_ASSIGN(XWalkExternalExtension);

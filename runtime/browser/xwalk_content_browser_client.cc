@@ -10,10 +10,12 @@
 #include "base/path_service.h"
 #include "base/platform_file.h"
 #include "xwalk/extensions/browser/xwalk_extension_service.h"
+#include "xwalk/extensions/common/xwalk_extension_switches.h"
 #include "xwalk/runtime/browser/xwalk_browser_main_parts.h"
 #include "xwalk/runtime/browser/geolocation/xwalk_access_token_store.h"
 #include "xwalk/runtime/browser/media/media_capture_devices_dispatcher.h"
 #include "xwalk/runtime/browser/runtime_context.h"
+#include "xwalk/runtime/browser/runtime_quota_permission_context.h"
 #include "content/public/browser/browser_main_parts.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/web_contents.h"
@@ -23,7 +25,17 @@
 #if defined(OS_ANDROID)
 #include "base/android/path_utils.h"
 #include "base/base_paths_android.h"
+#include "xwalk/runtime/browser/runtime_resource_dispatcher_host_delegate.h"
+#include "xwalk/runtime/browser/xwalk_browser_main_parts_android.h"
 #include "xwalk/runtime/common/android/xwalk_globals_android.h"
+#endif
+
+#if defined(OS_MACOSX)
+#include "xwalk/runtime/browser/xwalk_browser_main_parts_mac.h"
+#endif
+
+#if defined(OS_TIZEN_MOBILE)
+#include "xwalk/runtime/browser/xwalk_browser_main_parts_tizen.h"
 #endif
 
 namespace xwalk {
@@ -33,11 +45,6 @@ namespace {
 // The application-wide singleton of ContentBrowserClient impl.
 XWalkContentBrowserClient* g_browser_client = NULL;
 
-#if defined(OS_ANDROID)
-// Android creates and holds its browser context by browser client.
-RuntimeContext* g_runtime_context;
-#endif
-
 }  // namespace
 
 // static
@@ -45,37 +52,30 @@ XWalkContentBrowserClient* XWalkContentBrowserClient::Get() {
   return g_browser_client;
 }
 
-#if defined(OS_ANDROID)
-// static
-RuntimeContext* XWalkContentBrowserClient::GetRuntimeContext() {
-  return g_runtime_context;
-}
-#endif
 
 XWalkContentBrowserClient::XWalkContentBrowserClient()
     : main_parts_(NULL) {
   DCHECK(!g_browser_client);
   g_browser_client = this;
-#if defined(OS_ANDROID)
-  g_runtime_context = new RuntimeContext();
-#endif
 }
 
 XWalkContentBrowserClient::~XWalkContentBrowserClient() {
   DCHECK(g_browser_client);
   g_browser_client = NULL;
-#if defined(OS_ANDROID)
-  g_runtime_context = NULL;
-#endif
 }
 
 content::BrowserMainParts* XWalkContentBrowserClient::CreateBrowserMainParts(
     const content::MainFunctionParams& parameters) {
+#if defined(OS_MACOSX)
+  main_parts_ = new XWalkBrowserMainPartsMac(parameters);
+#elif defined(OS_ANDROID)
+  main_parts_ = new XWalkBrowserMainPartsAndroid(parameters);
+#elif defined(OS_TIZEN_MOBILE)
+  main_parts_ = new XWalkBrowserMainPartsTizen(parameters);
+#else
   main_parts_ = new XWalkBrowserMainParts(parameters);
-
-#if defined(OS_ANDROID)
-  main_parts_->SetRuntimeContext(g_runtime_context);
 #endif
+
   return main_parts_;
 }
 
@@ -98,6 +98,27 @@ XWalkContentBrowserClient::CreateRequestContextForStoragePartition(
           partition_path, in_memory, protocol_handlers);
 }
 
+// This allow us to append extra command line switches to the child
+// process we launch.
+void XWalkContentBrowserClient::AppendExtraCommandLineSwitches(
+    CommandLine* command_line, int child_process_id) {
+  CommandLine* browser_process_cmd_line = CommandLine::ForCurrentProcess();
+  const int extra_switches_count = 1;
+  const char* extra_switches[extra_switches_count] = {
+    switches::kXWalkDisableExtensionProcess
+  };
+
+  for (int i = 0; i < extra_switches_count; i++) {
+    if (browser_process_cmd_line->HasSwitch(extra_switches[i]))
+      command_line->AppendSwitch(extra_switches[i]);
+  }
+}
+
+content::QuotaPermissionContext*
+XWalkContentBrowserClient::CreateQuotaPermissionContext() {
+  return new RuntimeQuotaPermissionContext();
+}
+
 content::AccessTokenStore* XWalkContentBrowserClient::CreateAccessTokenStore() {
   return new XWalkAccessTokenStore(url_request_context_getter_);
 }
@@ -110,12 +131,10 @@ XWalkContentBrowserClient::GetWebContentsViewDelegate(
 
 void XWalkContentBrowserClient::RenderProcessHostCreated(
     content::RenderProcessHost* host) {
-#if !defined(OS_ANDROID)
-  main_parts_->extension_service()->OnRenderProcessHostCreated(host);
-#else
-  // Extension in Android is not supported currently.
-  NOTIMPLEMENTED();
-#endif
+  xwalk::extensions::XWalkExtensionService* extension_service =
+      main_parts_->extension_service();
+  if (extension_service)
+    extension_service->OnRenderProcessHostCreated(host);
 }
 
 content::MediaObserver* XWalkContentBrowserClient::GetMediaObserver() {
@@ -144,6 +163,18 @@ void XWalkContentBrowserClient::GetAdditionalMappedFilesForChildProcess(
       content::FileDescriptorInfo(kXWalkPakDescriptor,
                                   base::FileDescriptor(f, true)));
 }
+
+void XWalkContentBrowserClient::ResourceDispatcherHostCreated() {
+  RuntimeResourceDispatcherHostDelegate::ResourceDispatcherHostCreated();
+}
 #endif
+
+void XWalkContentBrowserClient::RenderProcessHostGone(
+    content::RenderProcessHost* host) {
+  xwalk::extensions::XWalkExtensionService* extension_service =
+      main_parts_->extension_service();
+  if (extension_service)
+    extension_service->OnRenderProcessDied(host);
+}
 
 }  // namespace xwalk

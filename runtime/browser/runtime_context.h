@@ -11,6 +11,7 @@
 #include "base/memory/scoped_ptr.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/geolocation_permission_context.h"
 
 namespace net {
 class URLRequestContextGetter;
@@ -36,20 +37,12 @@ class RuntimeContext : public content::BrowserContext {
   RuntimeContext();
   virtual ~RuntimeContext();
 
-#if defined(OS_ANDROID)
   // Convenience method to returns the RuntimeContext corresponding to the
   // given WebContents.
   static RuntimeContext* FromWebContents(content::WebContents* web_contents);
 
-  // Called before BrowserThreads are created.
-  void InitializeBeforeThreadCreation();
-
-  // Maps to BrowserMainParts::PreMainMessageLoopRun.
-  void PreMainMessageLoopRun();
-#endif
-
   // BrowserContext implementation.
-  virtual base::FilePath GetPath() OVERRIDE;
+  virtual base::FilePath GetPath() const OVERRIDE;
   virtual bool IsOffTheRecord() const OVERRIDE;
   virtual content::DownloadManagerDelegate*
       GetDownloadManagerDelegate() OVERRIDE;
@@ -66,9 +59,18 @@ class RuntimeContext : public content::BrowserContext {
   virtual content::ResourceContext* GetResourceContext() OVERRIDE;
   virtual content::GeolocationPermissionContext*
       GetGeolocationPermissionContext() OVERRIDE;
-  virtual content::SpeechRecognitionPreferences*
-      GetSpeechRecognitionPreferences() OVERRIDE;
   virtual quota::SpecialStoragePolicy* GetSpecialStoragePolicy() OVERRIDE;
+  virtual void RequestMIDISysExPermission(
+      int render_process_id,
+      int render_view_id,
+      int bridge_id,
+      const GURL& requesting_frame,
+      const MIDISysExPermissionCallback& callback) OVERRIDE { }
+  virtual void CancelMIDISysExPermissionRequest(
+      int render_process_id,
+      int render_view_id,
+      int bridge_id,
+      const GURL& requesting_frame) OVERRIDE {}
 
   xwalk::application::ApplicationSystem* GetApplicationSystem();
 
@@ -90,6 +92,8 @@ class RuntimeContext : public content::BrowserContext {
   scoped_ptr<xwalk::application::ApplicationSystem> application_system_;
   scoped_refptr<RuntimeDownloadManagerDelegate> download_manager_delegate_;
   scoped_refptr<RuntimeURLRequestContextGetter> url_request_getter_;
+  scoped_refptr<content::GeolocationPermissionContext>
+       geolocation_permission_context_;
 
   DISALLOW_COPY_AND_ASSIGN(RuntimeContext);
 };

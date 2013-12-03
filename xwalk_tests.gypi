@@ -1,6 +1,21 @@
 {
   'targets': [
   {
+    'target_name': 'xwalk_all_tests',
+    'type': 'none',
+    'dependencies': [
+      'xwalk_unittest',
+      'xwalk_browsertest',
+    ],
+    'conditions': [
+      ['OS=="linux"', {
+        'dependencies': [
+          'dbus/xwalk_dbus.gyp:xwalk_dbus_unittests',
+        ],
+      }],
+    ],
+  },
+  {
     'target_name': 'xwalk_test_common',
     'type': 'static_library',
     'dependencies': [
@@ -9,8 +24,8 @@
       'xwalk_resources',
       '../base/base.gyp:test_support_base',
       '../base/base.gyp:base_prefs_test_support',
-      '../content/content.gyp:content_app',
-      '../content/content.gyp:test_support_content',
+      '../content/content.gyp:content',
+      '../content/content_shell_and_tests.gyp:test_support_content',
       '../net/net.gyp:net',
       '../net/net.gyp:net_test_support',
       '../skia/skia.gyp:skia',
@@ -31,12 +46,6 @@
       'test/base/xwalk_test_utils.h',
     ],
     'conditions': [
-      ['toolkit_uses_gtk == 1', {
-        'dependencies' : [
-          '../build/linux/system.gyp:gtk',
-          '../build/linux/system.gyp:ssl',
-        ],
-      }],
       ['OS=="win"', {
         'include_dirs': [
           '<DEPTH>/third_party/wtl/include',
@@ -49,7 +58,6 @@
       }],
     ],
   },  # xwalk_test_common target
-
   {
     'target_name': 'xwalk_unittest',
     'type': 'executable',
@@ -62,12 +70,18 @@
     ],
     'includes': [
       'extensions/extensions_unittests.gypi',
+      'sysapps/sysapps_unittests.gypi',
     ],
     'sources': [
+      'application/browser/application_event_router_unittest.cc',
+      'application/browser/installer/package_unittest.cc',
       'application/common/application_unittest.cc',
       'application/common/application_file_util_unittest.cc',
       'application/common/id_util_unittest.cc',
+      'application/common/manifest_handlers/permissions_handler_unittest.cc',
+      'application/common/manifest_handler_unittest.cc',
       'application/common/manifest_unittest.cc',
+      'application/common/db_store_sqlite_impl_unittest.cc',
       'runtime/common/xwalk_content_client_unittest.cc',
       'test/base/run_all_unittests.cc',
     ],
@@ -105,6 +119,15 @@
       'HAS_OUT_OF_PROC_TEST_RUNNER',
     ],
     'sources': [
+      'application/test/application_apitest.cc',
+      'application/test/application_apitest.h',
+      'application/test/application_browsertest.cc',
+      'application/test/application_browsertest.h',
+      'application/test/application_eventapi_test.cc',
+      'application/test/application_main_document_browsertest.cc',
+      'application/test/application_testapi.cc',
+      'application/test/application_testapi.h',
+      'application/test/application_testapi_test.cc',
       'runtime/browser/xwalk_download_browsertest.cc',
       'runtime/browser/xwalk_form_input_browsertest.cc',
       'runtime/browser/xwalk_runtime_browsertest.cc',
@@ -117,6 +140,8 @@
     ],
     'includes': [
       'extensions/extensions_browsertests.gypi',
+      'sysapps/sysapps_browsertests.gypi',
+      'xwalk_jsapi.gypi',
     ],
     'conditions': [
       ['OS=="win" and win_use_allocator_shim==1', {

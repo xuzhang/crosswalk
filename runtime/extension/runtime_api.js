@@ -2,8 +2,9 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-extension._setupExtensionInternal();
+var internal = requireNative("internal");
+internal.setupInternalExtension(extension);
 
 exports.getAPIVersion = function(callback) {
-  extension._setMessageListenerInternal('getAPIVersion', [], callback);
+  internal.postMessage('getAPIVersion', [], callback);
 }
